@@ -1,0 +1,656 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pesquisa Impulso DISC</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #a5f3fc, #06b6d4);
+            font-family: 'Inter', sans-serif;
+        }
+        .scale-option {
+            transition: all 0.2s ease;
+            border: 2px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 8px;
+            text-align: center;
+            cursor: pointer;
+            background-color: #f8fafc;
+            font-weight: 600;
+        }
+        .scale-option:hover {
+            background-color: #e0f2fe;
+            border-color: #38bdf8;
+        }
+        .scale-option.selected {
+            background: linear-gradient(135deg, #3b82f6, #1e40af);
+            color: white;
+            border-color: #1e40af;
+        }
+        .bar-3d {
+            position: relative;
+            width: 60px;
+            border-radius: 10px 10px 0 0;
+            transform: rotateX(10deg);
+            box-shadow: 
+                0 8px 15px rgba(0,0,0,0.15),
+                inset 0 -3px 8px rgba(0,0,0,0.1);
+            transition: height 1.2s cubic-bezier(0.2, 0.8, 0.4, 1);
+        }
+        .bar-value {
+            position: absolute;
+            top: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-weight: 700;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            font-size: 0.9em;
+            background: rgba(0,0,0,0.65);
+            padding: 2px 8px;
+            border-radius: 15px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6, #1e40af);
+            animation: pulse 2s infinite;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #1e40af, #3b82f6);
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+        }
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #4b5563, #6b7280);
+        }
+        .btn-result {
+            background: linear-gradient(135deg, #ec4899, #be185d);
+        }
+        .btn-result:hover {
+            background: linear-gradient(135deg, #be185d, #ec4899);
+        }
+        .btn-start {
+            background: linear-gradient(135deg, #22d3ee, #0ea5e9);
+        }
+        .btn-start:hover {
+            background: linear-gradient(135deg, #0ea5e9, #22d3ee);
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .input-icon {
+            position: relative;
+        }
+        .input-icon svg {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            color: #4b5563;
+        }
+        .input-icon input {
+            padding-left: 40px;
+        }
+        .signature {
+            font-family: 'Dancing Script', cursive;
+            color: #0ea5e9;
+            font-size: 1.4rem;
+        }
+        .alert-blink {
+            animation: blink 1.2s infinite;
+            background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+            border-left: 4px solid #3b82f6;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-weight: 600;
+            color: #1e40af;
+        }
+        .progress-bar {
+            height: 4px;
+            background: #e5e7eb;
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 8px;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: #3b82f6;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-3xl w-full bg-white rounded-2xl shadow-xl p-6 md:p-8">
+        <h2 class="text-3xl md:text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-teal-500 to-blue-600 mb-2">Impulso Coaching</h2>
+        <h1 class="text-4xl md:text-5xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-teal-500 mb-4">Pesquisa Impulso DISC</h1>
+        <p class="text-center text-gray-600 mb-6">A Mudança Pode Acontecer Em Um Instante</p>
+
+        <!-- Formulário Inicial -->
+        <div id="intro">
+            <div class="bg-gradient-to-r from-blue-100 to-teal-100 p-5 rounded-lg mb-4 shadow-md">
+                <p class="text-lg font-semibold text-gray-800 mb-3">Dados Pessoais</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                    <div class="input-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                        <input type="text" id="name" placeholder="Nome *" class="border border-teal-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gradient-to-r from-white to-teal-50">
+                    </div>
+                    <div class="input-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        <input type="number" id="age" placeholder="Idade *" class="border border-teal-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gradient-to-r from-white to-teal-50">
+                    </div>
+                    <div class="input-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                        <input type="text" id="occupation" placeholder="Profissão" class="border border-teal-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gradient-to-r from-white to-teal-50">
+                    </div>
+                </div>
+                <div class="input-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    <input type="email" id="email" placeholder="Email *" class="border border-teal-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gradient-to-r from-white to-teal-50">
+                </div>
+                <div class="flex justify-end mt-3">
+                    <button onclick="startTest()" class="btn-start text-white px-5 py-2 rounded-lg transition shadow-md text-sm md:text-base">Iniciar Pesquisa</button>
+                </div>
+            </div>
+
+            <div class="alert-blink text-center text-sm md:text-base">
+                <p class="font-bold">Dicas para Responder</p>
+                <ul class="list-disc list-inside mt-1 space-y-1">
+                    <li>Seja honesto: responda como você realmente é.</li>
+                    <li>Pense em situações do seu cotidiano.</li>
+                    <li>Escolha a afirmação que melhor te descreve.</li>
+                    <li>Não há respostas certas ou erradas!</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Teste -->
+        <div id="test-section" class="hidden">
+            <div id="current-question"></div>
+        </div>
+
+        <!-- Resultado -->
+        <div id="result" class="hidden mt-4">
+            <div class="bg-gradient-to-r from-blue-50 to-teal-50 p-4 rounded-lg shadow-md mb-4">
+                <h2 class="text-2xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-teal-500 mb-2">Pesquisa Impulso DISC</h2>
+                <p class="text-center text-gray-700 text-sm mb-2" id="personal-data"></p>
+                <p class="text-center text-gray-700 text-sm">Explore como suas características se distribuem nas quatro dimensões do DISC e descubra seus pontos fortes e áreas de melhoria.</p>
+            </div>
+
+            <!-- Barras -->
+            <div id="scores" class="flex justify-around items-end h-80 mb-6 bg-gray-50 rounded-lg p-4">
+                <div class="flex flex-col items-center">
+                    <div class="bar-3d score-d" id="bar-dominancia" style="height: 0px"><div class="bar-value" id="val-dominancia">0%</div></div>
+                    <div class="mt-1 font-bold text-red-600 text-sm">Dominância<br><span class="text-xs">Fogo / Colérico</span></div>
+                </div>
+                <div class="flex flex-col items-center">
+                    <div class="bar-3d score-i" id="bar-influencia" style="height: 0px"><div class="bar-value" id="val-influencia">0%</div></div>
+                    <div class="mt-1 font-bold text-orange-600 text-sm">Influência<br><span class="text-xs">Ar / Sanguíneo</span></div>
+                </div>
+                <div class="flex flex-col items-center">
+                    <div class="bar-3d score-s" id="bar-estabilidade" style="height: 0px"><div class="bar-value" id="val-estabilidade">0%</div></div>
+                    <div class="mt-1 font-bold text-blue-600 text-sm">Estabilidade<br><span class="text-xs">Água / Fleumático</span></div>
+                </div>
+                <div class="flex flex-col items-center">
+                    <div class="bar-3d score-c" id="bar-conformidade" style="height: 0px"><div class="bar-value" id="val-conformidade">0%</div></div>
+                    <div class="mt-1 font-bold text-green-600 text-sm">Conformidade<br><span class="text-xs">Terra / Melancólico</span></div>
+                </div>
+            </div>
+
+            <div id="dominant-section" class="mt-4 space-y-3"></div>
+
+            <div id="disc-explanation" class="bg-gradient-to-r from-blue-100 to-teal-100 p-4 rounded-lg mt-4 shadow-md">
+                <p class="text-lg font-semibold text-gray-800 mb-2">O que é o DISC?</p>
+                <p class="text-gray-700 text-xs">
+                    O DISC® é uma metodologia de avaliação comportamental desenvolvida com base nos estudos de William Marston, utilizada há mais de 38 anos por mais de 53 milhões de pessoas em todo o mundo. A ferramenta categoriza comportamentos em quatro dimensões principais: Dominância (D), Influência (I), Estabilidade (S) e Conformidade (C). Cada dimensão reflete um conjunto de características que ajudam a compreender como as pessoas abordam desafios, interagem com os outros, lidam com mudanças e seguem regras ou processos.
+                </p>
+                <p class="text-gray-700 text-xs mt-2">
+                    O DISC é amplamente utilizado em contextos corporativos e pessoais para promover autoconhecimento, melhorar a comunicação e construir equipes mais eficazes. Seus benefícios incluem:
+                </p>
+                <ul class="list-disc list-inside text-gray-700 mt-1 text-xs">
+                    <li>Desenvolvimento de liderança e resolução de conflitos.</li>
+                    <li>Alinhamento de perfis comportamentais a funções adequadas.</li>
+                    <li>Redução de ruídos de comunicação em equipes.</li>
+                    <li>Suporte em processos de recrutamento e desenvolvimento profissional.</li>
+                    <li>Promoção do autodesenvolvimento e da colaboração.</li>
+                </ul>
+            </div>
+            <p class="text-right mt-4 text-xl signature">Rogério Braga - impulsoflow@gmail.com</p>
+        </div>
+    </div>
+
+    <script>
+        // === AFIRMAÇÕES ===
+        const affirmations = [
+            "Gosto de tomar decisões rápidas sob pressão",
+            "Sou ótimo em motivar as pessoas ao meu redor",
+            "Prefiro manter a calma mesmo em situações tensas",
+            "Sempre verifico os detalhes antes de finalizar algo",
+            "Enfrento desafios de frente, sem hesitar",
+            "Faço networking facilmente em eventos",
+            "Valorizo relações estáveis e de longo prazo",
+            "Sigo regras e procedimentos à risca",
+            "Competir me energiza e me faz render mais",
+            "Sou persuasivo quando preciso convencer alguém",
+            "Apoio meus colegas mesmo quando discordo",
+            "Analiso dados pra tomar decisões informadas",
+            "Assumo riscos calculados pra alcançar metas",
+            "Gosto de ser o centro das atenções em grupos",
+            "Evito conflitos pra manter a harmonia",
+            "Prefiro trabalhar com fatos, não intuição",
+            "Lido bem com autoridade e hierarquia",
+            "Inspiro confiança nas pessoas com minha energia",
+            "Sou paciente com processos que levam tempo",
+            "Corrijo erros imediatamente quando os encontro",
+            "Defendo minhas ideias com convicção",
+            "Faço as pessoas rirem e se sentirem bem",
+            "Sou leal aos meus compromissos, custe o que custar",
+            "Organizo meu trabalho por prioridade e prazos",
+            "Gosto de liderar projetos do início ao fim",
+            "Sou bom em apresentações e discursos",
+            "Prefiro colaboração a competição no time",
+            "Verifico fontes antes de acreditar em algo",
+            "Ação imediata é melhor que planejamento longo",
+            "Gosto de ajudar os outros a se sentirem incluídos",
+            "Mantenho a rotina mesmo quando tudo muda",
+            "Uso planilhas e sistemas pra rastrear progresso",
+            "Confrontar problemas me deixa mais forte",
+            "Sou otimista mesmo em situações difíceis",
+            "Escuto mais do que falo em discussões",
+            "Questiono informações que parecem inconsistentes",
+            "Metas ousadas me desafiam e motivam",
+            "Construo redes de contatos estratégicas",
+            "Valorizo previsibilidade no meu dia a dia",
+            "Documento tudo pra evitar mal-entendidos",
+            "Tomo iniciativa quando ninguém mais age",
+            "Sou empático e entendo as emoções alheias",
+            "Trabalho bem sob supervisão constante",
+            "Identifico padrões e tendências nos dados",
+            "Resultados falam mais alto que processos",
+            "Gosto de eventos sociais e comemorações",
+            "Sou consistente no que prometo entregar",
+            "Evito decisões precipitadas sem análise"
+        ];
+
+        const discMapping = {
+            1: 'D', 2: 'I', 3: 'S', 4: 'C',
+            5: 'D', 6: 'I', 7: 'S', 8: 'C',
+            9: 'D', 10: 'I', 11: 'S', 12: 'C',
+            13: 'D', 14: 'I', 15: 'S', 16: 'C',
+            17: 'D', 18: 'I', 19: 'S', 20: 'C',
+            21: 'D', 22: 'I', 23: 'S', 24: 'C',
+            25: 'D', 26: 'I', 27: 'S', 28: 'C',
+            29: 'D', 30: 'I', 31: 'S', 32: 'C',
+            33: 'D', 34: 'I', 35: 'S', 36: 'C',
+            37: 'D', 38: 'I', 39: 'S', 40: 'C',
+            41: 'D', 42: 'I', 43: 'S', 44: 'C',
+            45: 'D', 46: 'I', 47: 'S', 48: 'C'
+        };
+
+        let current = 0;
+        const responses = new Array(48).fill(null);
+
+        function sanitize(str) {
+            return str.replace(/[<>&"']/g, char => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[char]));
+        }
+
+        function validateEmail(email) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        }
+
+        function startTest() {
+            const name = document.getElementById('name').value.trim();
+            const age = document.getElementById('age').value.trim();
+            const email = document.getElementById('email').value.trim();
+            if (!name || !age || !email || !validateEmail(email)) {
+                alert('Preencha todos os campos corretamente.');
+                return;
+            }
+            document.getElementById('intro').classList.add('hidden');
+            document.getElementById('test-section').classList.remove('hidden');
+            loadQuestion(0);
+        }
+
+        function loadQuestion(index) {
+            current = index;
+            const qNum = index + 1;
+            const progress = Math.round(((qNum - 1) / 48) * 100);
+            const html = `
+                <div class="bg-gradient-to-r from-blue-50 to-teal-50 p-5 rounded-lg shadow-md">
+                    <p class="text-lg font-semibold text-gray-800 mb-4">Pergunta ${String(qNum).padStart(2, '0')} de 48</p>
+                    <p class="text-xl font-medium text-center mb-6">"${affirmations[index]}"</p>
+                    <div class="grid grid-cols-5 gap-2 mb-6">
+                        ${[1,2,3,4,5].map(val => `
+                            <div class="scale-option" data-value="${val}" onclick="selectAnswer(${qNum}, ${val})">
+                                ${val}<br><small>${val === 1 ? 'Discordo totalmente' : val === 2 ? 'Discordo' : val === 3 ? 'Neutro' : val === 4 ? 'Concordo' : 'Concordo totalmente'}</small>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="flex justify-between">
+                        ${index > 0 ? `<button onclick="loadQuestion(${index - 1})" class="btn-secondary text-white px-6 py-3 rounded-lg text-base">Anterior</button>` : `<div></div>`}
+                        ${index < 47 ? 
+                            `<button onclick="nextQuestion(${index})" class="btn-primary text-white px-6 py-3 rounded-lg text-base ${responses[index] === null ? 'opacity-50 cursor-not-allowed' : ''}">Próxima</button>` :
+                            `<button onclick="showResult()" class="btn-result text-white px-6 py-3 rounded-lg text-base ${responses[index] === null ? 'opacity-50 cursor-not-allowed' : ''}">Ver Resultado</button>`
+                        }
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-bar-fill" style="width: ${progress}%"></div>
+                    </div>
+                </div>
+                <input type="hidden" id="q${qNum}" value="${responses[index] || ''}">
+            `;
+            document.getElementById('current-question').innerHTML = html;
+            if (responses[index] !== null) {
+                document.querySelector(`.scale-option[data-value="${responses[index]}"]`).classList.add('selected');
+            }
+        }
+
+        function selectAnswer(qNum, value) {
+            responses[qNum - 1] = value;
+            document.querySelectorAll('.scale-option').forEach(el => el.classList.remove('selected'));
+            document.querySelector(`.scale-option[data-value="${value}"]`).classList.add('selected');
+            document.getElementById(`q${qNum}`).value = value;
+        }
+
+        function nextQuestion(index) {
+            if (responses[index] === null) {
+                alert('Selecione uma opção antes de continuar.');
+                return;
+            }
+            loadQuestion(index + 1);
+        }
+
+        function showResult() {
+            if (responses[47] === null) {
+                alert('Responda a última pergunta.');
+                return;
+            }
+
+            let scores = { D: 0, I: 0, S: 0, C: 0 };
+            for (let i = 1; i <= 48; i++) {
+                const val = responses[i - 1];
+                const style = discMapping[i];
+                scores[style] += val;
+            }
+
+            const total = scores.D + scores.I + scores.S + scores.C;
+            const pct = {
+                D: Math.round((scores.D / total) * 100),
+                I: Math.round((scores.I / total) * 100),
+                S: Math.round((scores.S / total) * 100),
+                C: Math.round((scores.C / total) * 100)
+            };
+
+            let sum = pct.D + pct.I + pct.S + pct.C;
+            if (sum !== 100) pct.D += (100 - sum);
+
+            document.getElementById('test-section').classList.add('hidden');
+            document.getElementById('result').classList.remove('hidden');
+
+            const maxHeight = 300;
+
+            setTimeout(() => {
+                const setBar = (id, pctVal, color) => {
+                    const bar = document.getElementById(id);
+                    bar.style.height = `${(pctVal / 100) * maxHeight}px`;
+                    bar.style.background = color;
+                    document.getElementById(`val-${id.split('-')[1]}`).textContent = `${pctVal}%`;
+                };
+
+                setBar('bar-dominancia', pct.D, 'linear-gradient(135deg, #ef4444, #b91c1c)');
+                setBar('bar-influencia', pct.I, 'linear-gradient(135deg, #f59e0b, #b45309)');
+                setBar('bar-estabilidade', pct.S, 'linear-gradient(135deg, #3b82f6, #1e40af)');
+                setBar('bar-conformidade', pct.C, 'linear-gradient(135deg, #10b981, #047857)');
+            }, 300);
+
+            const sorted = Object.entries(pct).sort((a, b) => b[1] - a[1]);
+            const primary = sorted[0][0];
+            const secondary = sorted[1][0];
+
+            const info = {
+                D: { 
+                    name: 'Dominância (Colérico)', 
+                    desc: 'Líder nato, focado em resultados, direto e determinado. Excelente em tomar decisões rápidas e enfrentar desafios.',
+                    details: `Pessoas com Dominância são movidas por desafios e resultados. São assertivas, confiantes e preferem ambientes onde podem assumir o controle. No trabalho, destacam-se em papéis de liderança, como gerentes ou empreendedores, tomando decisões rápidas e enfrentando obstáculos com determinação. Seus pontos fortes incluem coragem, iniciativa e foco em metas.\n\n**Fraquezas**: Podem ser impacientes, autoritárias ou insensíveis às necessidades dos outros, especialmente sob pressão. Podem ignorar detalhes importantes em prol de resultados rápidos, o que pode levar a erros. Também tendem a evitar delegar tarefas, preferindo controlar tudo, e podem parecer agressivas em discussões. Sua dificuldade em ouvir opiniões contrárias pode gerar conflitos desnecessários. Para melhorar, devem praticar escuta ativa, desenvolver paciência e valorizar a colaboração.`
+                },
+                I: { 
+                    name: 'Influência (Sanguíneo)', 
+                    desc: 'Comunicativo, entusiasta e persuasivo. Motiva equipes e cria conexões com facilidade.',
+                    details: `Indivíduos com Influência são extrovertidos, carismáticos e adoram interagir. São excelentes em vendas, marketing ou papéis que exigem networking, pois inspiram e motivam com facilidade. Seus pontos fortes incluem habilidades de comunicação, otimismo e capacidade de criar ambientes positivos.\n\n**Fraquezas**: Podem ser desorganizados, impulsivos ou negligenciar detalhes técnicos, o que pode comprometer projetos. Tendem a evitar tarefas rotineiras, preferindo atividades sociais, e podem prometer mais do que conseguem entregar. Sua tendência a buscar aprovação pode levá-los a evitar confrontos ou decisões difíceis. Para crescer, devem desenvolver disciplina, foco em detalhes e consistência em compromissos de longo prazo.`
+                },
+                S: { 
+                    name: 'Estabilidade (Fleumático)', 
+                    desc: 'Calmo, leal e colaborativo. Valoriza harmonia e oferece suporte em ambientes estáveis.',
+                    details: `Pessoas com Estabilidade são pacíficas, confiáveis e preferem rotinas previsíveis. São ideais para funções de suporte, como recursos humanos ou atendimento ao cliente, onde sua paciência e empatia brilham. Seus pontos fortes incluem lealdade, trabalho em equipe e habilidade de ouvir.\n\n**Fraquezas**: Podem ser resistentes a mudanças, evitar conflitos a ponto de suprimir opiniões e ter dificuldade em tomar decisões rápidas. Sua tendência a manter a harmonia pode levar à passividade ou à aceitação de situações desfavoráveis. Podem parecer lentos em ambientes dinâmicos e evitar assumir riscos. Para melhorar, devem praticar assertividade, adaptar-se a mudanças e expressar suas ideias com confiança.`
+                },
+                C: { 
+                    name: 'Conformidade (Melancólico)', 
+                    desc: 'Analítico, detalhista e organizado. Prioriza precisão e qualidade no trabalho.',
+                    details: `Indivíduos com Conformidade são meticulosos, lógicos e focados em qualidade. Excelentes em áreas como contabilidade, engenharia ou pesquisa, eles valorizam dados e processos estruturados. Seus pontos fortes incluem precisão, organização e atenção aos detalhes.\n\n**Fraquezas**: Podem ser excessivamente perfeccionistas, o que atrasa projetos, ou hesitar em decidir sem todas as informações. Tendem a ser críticos demais, tanto consigo quanto com os outros, e podem resistir a abordagens menos estruturadas. Sua relutância em delegar pode sobrecarregá-los, e a tendência a focar em erros pode minar a confiança da equipe. Para crescer, devem desenvolver flexibilidade, aceitar riscos calculados e confiar mais na intuição.`
+                }
+            };
+
+            const p = info[primary];
+            const s = info[secondary];
+
+            document.getElementById('personal-data').innerHTML = `Nome: ${sanitize(window.userData?.name || document.getElementById('name').value.trim())} | Idade: ${sanitize(window.userData?.age || document.getElementById('age').value.trim())} | Profissão: ${sanitize(window.userData?.occupation || document.getElementById('occupation').value.trim())} | Email: ${sanitize(window.userData?.email || document.getElementById('email').value.trim())}`;
+
+            document.getElementById('dominant-section').innerHTML = `
+                <div class="bg-gradient-to-r from-red-50 to-red-100 p-3 rounded-lg border-l-4 border-red-500">
+                    <h3 class="text-lg font-bold text-gray-800">Perfil Primário: ${p.name} (${pct[primary]}%)</h3>
+                    <p class="mt-1 text-xs">${p.desc}</p>
+                    <p class="mt-1 text-xs">${p.details.replace(/\n\n/g, '<br><br>')}</p>
+                </div>
+                <div class="bg-gradient-to-r from-orange-50 to-orange-100 p-3 rounded-lg border-l-4 border-orange-500">
+                    <h3 class="text-lg font-bold text-gray-800">Perfil Secundário: ${s.name} (${pct[secondary]}%)</h3>
+                    <p class="mt-1 text-xs">${s.desc}</p>
+                    <p class="mt-1 text-xs">${s.details.replace(/\n\n/g, '<br><br>')}</p>
+                </div>
+            `;
+
+            window.userData = {
+                name: document.getElementById('name').value.trim(),
+                age: document.getElementById('age').value.trim(),
+                occupation: document.getElementById('occupation').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                pct,
+                primary,
+                secondary,
+                p,
+                s
+            };
+
+            setTimeout(generatePDF, 800);
+        }
+
+        async function generatePDF() {
+            if (!window.jspdf) {
+                alert('Erro ao carregar biblioteca PDF.');
+                return;
+            }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            const pageWidth = 210;
+            let y = 10;
+
+            const data = window.userData;
+
+            // Cabeçalho Visual
+            doc.setFillColor(6, 182, 212);
+            doc.rect(0, 0, pageWidth, 25, 'F');
+            doc.setFontSize(20);
+            doc.setTextColor(255, 255, 255);
+            doc.setFont('helvetica', 'bold');
+            doc.text('🌟 Pesquisa Impulso DISC', pageWidth / 2, 12, { align: 'center' });
+            doc.setFontSize(10);
+            doc.text(`Relatório para: ${sanitize(data.name)}`, pageWidth / 2, 20, { align: 'center' });
+            y += 25;
+
+            // Dados Pessoais
+            doc.setFillColor(241, 245, 249);
+            doc.rect(15, y, 180, 10, 'F');
+            doc.setDrawColor(6, 182, 212);
+            doc.setLineWidth(0.5);
+            doc.roundedRect(15, y, 180, 10, 3, 3, 'S');
+            doc.setTextColor(0, 0, 0);
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+            doc.text('📋 Dados Pessoais', 20, y + 6);
+            y += 8;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            const personalData = `Nome: ${sanitize(data.name)} | Idade: ${sanitize(data.age)} | Profissão: ${sanitize(data.occupation)} | Email: ${sanitize(data.email)}`;
+            doc.text(personalData, 20, y, { maxWidth: 170 });
+            y += 10;
+
+            // Resultados (Barras)
+            try {
+                const scoresEl = document.getElementById('scores');
+                const canvas = await html2canvas(scoresEl, { scale: 2 });
+                const img = canvas.toDataURL('image/png');
+                doc.setFillColor(241, 245, 249);
+                doc.rect(15, y, 180, 75, 'F');
+                doc.roundedRect(15, y, 180, 75, 3, 3, 'S');
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'bold');
+                doc.text('📊 Resultados DISC', 20, y + 6);
+                y += 8;
+                doc.addImage(img, 'PNG', 20, y, 170, 70);
+                y += 75;
+            } catch (e) {
+                console.error('Erro ao capturar barras:', e);
+            }
+
+            // Explicação do DISC
+            const discText = `ℹ️ Sobre o DISC
+
+O DISC é uma metodologia de avaliação comportamental desenvolvida por William Marston, utilizada por mais de 53 milhões de pessoas em 38 anos. Categoriza comportamentos em quatro dimensões: Dominância (D), Influência (I), Estabilidade (S) e Conformidade (C). Cada dimensão reflete como as pessoas enfrentam desafios, interagem, lidam com mudanças e seguem processos.
+
+Benefícios:
+- Desenvolvimento de liderança e resolução de conflitos;
+- Alinhamento de perfis a funções adequadas;
+- Melhoria na comunicação em equipes;
+- Suporte em recrutamento e desenvolvimento;
+- Promoção de autoconhecimento e colaboração.`;
+
+            doc.setFillColor(219, 234, 254);
+            doc.rect(15, y, 180, 35, 'F');
+            doc.roundedRect(15, y, 180, 35, 3, 3, 'S');
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+            doc.text('ℹ️ Sobre o DISC', 20, y + 6);
+            y += 8;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            doc.text(discText, 20, y, { maxWidth: 170, lineHeightFactor: 1.0 });
+            y += 35;
+
+            // Perfis Predominantes
+            doc.setFillColor(255, 241, 242);
+            doc.rect(15, y, 180, 70, 'F');
+            doc.roundedRect(15, y, 180, 70, 3, 3, 'S');
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`🔝 Perfil Primário: ${data.p.name} (${data.pct[data.primary]}%)`, 20, y + 6);
+            y += 8;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            doc.text(data.p.desc, 20, y, { maxWidth: 170 });
+            y += 8;
+            doc.text(data.p.details, 20, y, { maxWidth: 170, lineHeightFactor: 1.0 });
+            y += 62;
+            doc.setFillColor(255, 247, 237);
+            doc.rect(15, y, 180, 70, 'F');
+            doc.roundedRect(15, y, 180, 70, 3, 3, 'S');
+            doc.setFont('helvetica', 'bold');
+            doc.text(`🔗 Perfil Secundário: ${data.s.name} (${data.pct[data.secondary]}%)`, 20, y + 6);
+            y += 8;
+            doc.setFont('helvetica', 'normal');
+            doc.text(data.s.desc, 20, y, { maxWidth: 170 });
+            y += 8;
+            doc.text(data.s.details, 20, y, { maxWidth: 170, lineHeightFactor: 1.0 });
+
+            // Rodapé
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'italic');
+            doc.setTextColor(0, 105, 148);
+            doc.text('Relatório gerado por Impulso Coaching - impulsoflow@gmail.com', pageWidth / 2, 280, { align: 'center' });
+
+            const pdfName = `resultado_disc_${data.name.replace(/\s+/g, '_')}.pdf`;
+            doc.save(pdfName);
+
+            const subject = encodeURIComponent(`Resultado da Pesquisa Impulso DISC - ${data.name}`);
+            const body = encodeURIComponent(
+                `Nome: ${data.name}\nIdade: ${data.age}\nProfissão: ${data.occupation}\nEmail: ${data.email}\n\n` +
+                `Resultados DISC:\n` +
+                `- Dominância: ${data.pct.D}%\n` +
+                `- Influência: ${data.pct.I}%\n` +
+                `- Estabilidade: ${data.pct.S}%\n` +
+                `- Conformidade: ${data.pct.C}%\n\n` +
+                `Perfil Primário: ${data.p.name} (${data.pct[data.primary]}%)\n` +
+                `${data.p.desc}\n${data.p.details}\n\n` +
+                `Perfil Secundário: ${data.s.name} (${data.pct[data.secondary]}%)\n` +
+                `${data.s.desc}\n${data.s.details}\n\n` +
+                `O PDF foi salvo automaticamente. Por favor, anexe o arquivo "${pdfName}" ao e-mail.`
+            );
+            window.location.href = `mailto:impulsoflow@gmail.com?subject=${subject}&body=${body}`;
+
+            setTimeout(() => {
+                alert(`✅ PDF salvo como "${pdfName}".\n📧 A janela de e-mail foi aberta — anexe o PDF e envie!`);
+            }, 600);
+        }
+    </script>
+</body>
+</html>
