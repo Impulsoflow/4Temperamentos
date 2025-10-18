@@ -1,0 +1,726 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+</script>
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Perfil Comportamental DISC</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            background: linear-gradient(135deg, #a5f3fc, #06b6d4);
+            font-family: 'Inter', sans-serif;
+        }
+        .scale-option {
+            transition: all 0.2s ease;
+            border: 2px solid #cbd5e1;
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+            background-color: #f8fafc;
+            font-weight: 600;
+        }
+        .scale-option:hover {
+            background-color: #e0f2fe;
+            border-color: #38bdf8;
+        }
+        .scale-option.selected {
+            background: linear-gradient(135deg, #3b82f6, #1e40af);
+            color: white;
+            border-color: #1e40af;
+        }
+        .bar-3d {
+            position: relative;
+            width: 70px;
+            border-radius: 12px 12px 0 0;
+            transform: rotateX(10deg);
+            box-shadow: 
+                0 10px 20px rgba(0,0,0,0.15),
+                inset 0 -4px 10px rgba(0,0,0,0.1);
+            transition: height 1.2s cubic-bezier(0.2, 0.8, 0.4, 1);
+        }
+        .bar-value {
+            position: absolute;
+            top: -32px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-weight: 800;
+            text-shadow: 1px 1px 3px rgba(0,0,0,0.7);
+            font-size: 1.2em;
+            background: rgba(0,0,0,0.65);
+            padding: 2px 10px;
+            border-radius: 20px;
+        }
+        .score-d .bar-3d { background: linear-gradient(135deg, #ef4444, #b91c1c); border-color: #b91c1c; }
+        .score-i .bar-3d { background: linear-gradient(135deg, #f59e0b, #b45309); border-color: #b45309; }
+        .score-s .bar-3d { background: linear-gradient(135deg, #3b82f6, #1e40af); border-color: #1e40af; }
+        .score-c .bar-3d { background: linear-gradient(135deg, #10b981, #047857); border-color: #047857; }
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6, #1e40af);
+            animation: pulse 2s infinite;
+        }
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #1e40af, #3b82f6);
+        }
+        .btn-secondary {
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+        }
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #4b5563, #6b7280);
+        }
+        .btn-result {
+            background: linear-gradient(135deg, #ec4899, #be185d);
+        }
+        .btn-result:hover {
+            background: linear-gradient(135deg, #be185d, #ec4899);
+        }
+        .btn-start {
+            background: linear-gradient(135deg, #22d3ee, #0ea5e9);
+        }
+        .btn-start:hover {
+            background: linear-gradient(135deg, #0ea5e9, #22d3ee);
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .input-icon {
+            position: relative;
+        }
+        .input-icon svg {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            color: #4b5563;
+        }
+        .input-icon input {
+            padding-left: 40px;
+        }
+        .signature {
+            font-family: 'Dancing Script', cursive;
+            color: #0ea5e9;
+            font-size: 1.4rem;
+        }
+        .alert-blink {
+            animation: blink 1.2s infinite;
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border-left: 4px solid #f59e0b;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 12px;
+            font-weight: 600;
+            color: #92400e;
+        }
+        .comparative-chart {
+            background: linear-gradient(135deg, #f8fafc, #e0f2fe);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.06);
+            margin-top: 20px;
+        }
+        canvas {
+            max-width: 100%;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+    <div class="max-w-3xl w-full bg-white rounded-2xl shadow-xl p-6 md:p-8">
+        <h2 class="text-3xl md:text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-teal-500 to-blue-600 mb-2">Impulso Coaching</h2>
+        <h1 class="text-4xl md:text-5xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-teal-500 mb-4">Teste DISC Completo</h1>
+        <p class="text-center text-gray-600 mb-6">A Mudança Pode Acontecer Em Um Instante</p>
+
+        <!-- Formulário Inicial -->
+        <div id="intro">
+            <div class="bg-gradient-to-r from-blue-100 to-teal-100 p-5 rounded-lg mb-4 shadow-md">
+                <p class="text-lg font-semibold text-gray-800 mb-3">Dados Pessoais</p>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+                    <div class="input-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                        <input type="text" id="name" placeholder="Nome *" class="border border-teal-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gradient-to-r from-white to-teal-50">
+                    </div>
+                    <div class="input-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                        <input type="number" id="age" placeholder="Idade *" class="border border-teal-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gradient-to-r from-white to-teal-50">
+                    </div>
+                    <div class="input-icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                        <input type="text" id="occupation" placeholder="Profissão" class="border border-teal-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gradient-to-r from-white to-teal-50">
+                    </div>
+                </div>
+                <div class="input-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    <input type="email" id="email" placeholder="Email *" class="border border-teal-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gradient-to-r from-white to-teal-50">
+                </div>
+                <div class="flex justify-end mt-3">
+                    <button onclick="startTest()" class="btn-start text-white px-5 py-2 rounded-lg transition shadow-md text-sm md:text-base">Iniciar Teste</button>
+                </div>
+            </div>
+
+            <!-- Dicas em destaque piscante -->
+            <div class="alert-blink text-center text-sm md:text-base">
+                <p class="font-bold">Dicas para Responder</p>
+                <ul class="list-disc list-inside mt-1 space-y-1">
+                    <li>Seja honesto: responda como você realmente é.</li>
+                    <li>Pense em situações do seu cotidiano.</li>
+                    <li>Escolha a afirmação que melhor te descreve.</li>
+                    <li>Não há respostas certas ou erradas!</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Teste: uma pergunta por vez -->
+        <div id="test-section" class="hidden">
+            <div id="current-question"></div>
+        </div>
+
+        <!-- Resultado -->
+        <div id="result" class="hidden mt-6">
+            <h2 class="text-3xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-teal-500 mb-4">Seu Resultado DISC</h2>
+            <div id="scores" class="flex justify-around items-end h-80 mb-10 bg-gray-50 rounded-xl p-6">
+                <div class="flex flex-col items-center">
+                    <div class="bar-3d score-d" id="bar-dominancia" style="height: 0px"><div class="bar-value" id="val-dominancia">0%</div></div>
+                    <div class="mt-2 font-bold text-red-600">Dominância<br><span class="text-sm">Fogo / Colérico</span></div>
+                </div>
+                <div class="flex flex-col items-center">
+                    <div class="bar-3d score-i" id="bar-influencia" style="height: 0px"><div class="bar-value" id="val-influencia">0%</div></div>
+                    <div class="mt-2 font-bold text-orange-600">Influência<br><span class="text-sm">Ar / Sanguíneo</span></div>
+                </div>
+                <div class="flex flex-col items-center">
+                    <div class="bar-3d score-s" id="bar-estabilidade" style="height: 0px"><div class="bar-value" id="val-estabilidade">0%</div></div>
+                    <div class="mt-2 font-bold text-blue-600">Estabilidade<br><span class="text-sm">Água / Fleumático</span></div>
+                </div>
+                <div class="flex flex-col items-center">
+                    <div class="bar-3d score-c" id="bar-conformidade" style="height: 0px"><div class="bar-value" id="val-conformidade">0%</div></div>
+                    <div class="mt-2 font-bold text-green-600">Conformidade<br><span class="text-sm">Terra / Melancólico</span></div>
+                </div>
+            </div>
+
+            <div id="dominant-section" class="mt-6 space-y-4"></div>
+
+            <div class="comparative-chart mt-6">
+                <h3 class="text-xl font-bold text-gray-800 mb-4">Comparação com Perfis Típicos</h3>
+                <p class="text-gray-600 mb-4">Compare seu perfil DISC com perfis típicos de diferentes papéis:</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <h4 class="text-lg font-semibold text-gray-700 mb-2">Líder</h4>
+                        <canvas id="chart-leader"></canvas>
+                    </div>
+                    <div>
+                        <h4 class="text-lg font-semibold text-gray-700 mb-2">Comunicador</h4>
+                        <canvas id="chart-communicator"></canvas>
+                    </div>
+                    <div>
+                        <h4 class="text-lg font-semibold text-gray-700 mb-2">Colaborador</h4>
+                        <canvas id="chart-teamplayer"></canvas>
+                    </div>
+                    <div>
+                        <h4 class="text-lg font-semibold text-gray-700 mb-2">Analista</h4>
+                        <canvas id="chart-analyst"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gradient-to-r from-blue-100 to-teal-100 p-5 rounded-lg mt-6 shadow-md">
+                <p class="text-lg font-semibold text-gray-800 mb-2">O que é o DISC?</p>
+                <p class="text-gray-700 text-sm md:text-base">
+                    O DISC® é uma ferramenta de avaliação comportamental validada cientificamente...
+                </p>
+                <ul class="list-disc list-inside text-gray-700 mt-2 text-sm">
+                    <li><strong>D (Dominância):</strong> Fogo, Colérico, Competitivo, Executor</li>
+                    <li><strong>I (Influência):</strong> Ar, Sanguíneo, Sociável, Persuasivo</li>
+                    <li><strong>S (Estabilidade):</strong> Água, Fleumático, Sensitivo, Estabilidade</li>
+                    <li><strong>C (Conformidade):</strong> Terra, Melancólico, Analítico, Conformidade</li>
+                </ul>
+            </div>
+            <p class="text-right mt-6 text-xl signature">Rogério Braga - impulsoflow@gmail.com</p>
+        </div>
+    </div>
+
+    <script>
+        // === AFIRMAÇÕES ===
+        const affirmations = [
+            "Gosto de tomar decisões rápidas sob pressão",
+            "Sou ótimo em motivar as pessoas ao meu redor",
+            "Prefiro manter a calma mesmo em situações tensas",
+            "Sempre verifico os detalhes antes de finalizar algo",
+            "Enfrento desafios de frente, sem hesitar",
+            "Faço networking facilmente em eventos",
+            "Valorizo relações estáveis e de longo prazo",
+            "Sigo regras e procedimentos à risca",
+            "Competir me energiza e me faz render mais",
+            "Sou persuasivo quando preciso convencer alguém",
+            "Apoio meus colegas mesmo quando discordo",
+            "Analiso dados pra tomar decisões informadas",
+            "Assumo riscos calculados pra alcançar metas",
+            "Gosto de ser o centro das atenções em grupos",
+            "Evito conflitos pra manter a harmonia",
+            "Prefiro trabalhar com fatos, não intuição",
+            "Lido bem com autoridade e hierarquia",
+            "Inspiro confiança nas pessoas com minha energia",
+            "Sou paciente com processos que levam tempo",
+            "Corrijo erros imediatamente quando os encontro",
+            "Defendo minhas ideias com convicção",
+            "Faço as pessoas rirem e se sentirem bem",
+            "Sou leal aos meus compromissos, custe o que custar",
+            "Organizo meu trabalho por prioridade e prazos",
+            "Gosto de liderar projetos do início ao fim",
+            "Sou bom em apresentações e discursos",
+            "Prefiro colaboração a competição no time",
+            "Verifico fontes antes de acreditar em algo",
+            "Ação imediata é melhor que planejamento longo",
+            "Gosto de ajudar os outros a se sentirem incluídos",
+            "Mantenho a rotina mesmo quando tudo muda",
+            "Uso planilhas e sistemas pra rastrear progresso",
+            "Confrontar problemas me deixa mais forte",
+            "Sou otimista mesmo em situações difíceis",
+            "Escuto mais do que falo em discussões",
+            "Questiono informações que parecem inconsistentes",
+            "Metas ousadas me desafiam e motivam",
+            "Construo redes de contatos estratégicas",
+            "Valorizo previsibilidade no meu dia a dia",
+            "Documento tudo pra evitar mal-entendidos",
+            "Tomo iniciativa quando ninguém mais age",
+            "Sou empático e entendo as emoções alheias",
+            "Trabalho bem sob supervisão constante",
+            "Identifico padrões e tendências nos dados",
+            "Resultados falam mais alto que processos",
+            "Gosto de eventos sociais e comemorações",
+            "Sou consistente no que prometo entregar",
+            "Evito decisões precipitadas sem análise"
+        ];
+
+        const discMapping = {
+            1: 'D', 2: 'I', 3: 'S', 4: 'C',
+            5: 'D', 6: 'I', 7: 'S', 8: 'C',
+            9: 'D', 10: 'I', 11: 'S', 12: 'C',
+            13: 'D', 14: 'I', 15: 'S', 16: 'C',
+            17: 'D', 18: 'I', 19: 'S', 20: 'C',
+            21: 'D', 22: 'I', 23: 'S', 24: 'C',
+            25: 'D', 26: 'I', 27: 'S', 28: 'C',
+            29: 'D', 30: 'I', 31: 'S', 32: 'C',
+            33: 'D', 34: 'I', 35: 'S', 36: 'C',
+            37: 'D', 38: 'I', 39: 'S', 40: 'C',
+            41: 'D', 42: 'I', 43: 'S', 44: 'C',
+            45: 'D', 46: 'I', 47: 'S', 48: 'C'
+        };
+
+        let current = 0;
+        const responses = new Array(48).fill(null);
+
+        function sanitize(str) {
+            return str.replace(/[<>&"']/g, char => ({ '<': '<', '>': '>', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[char]));
+        }
+
+        function validateEmail(email) {
+            return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        }
+
+        function startTest() {
+            const name = document.getElementById('name').value.trim();
+            const age = document.getElementById('age').value.trim();
+            const email = document.getElementById('email').value.trim();
+            if (!name || !age || !email || !validateEmail(email)) {
+                alert('Preencha todos os campos corretamente.');
+                return;
+            }
+            document.getElementById('intro').classList.add('hidden');
+            document.getElementById('test-section').classList.remove('hidden');
+            loadQuestion(0);
+        }
+
+        function loadQuestion(index) {
+            current = index;
+            const qNum = index + 1;
+            const html = `
+                <div class="bg-gradient-to-r from-blue-50 to-teal-50 p-5 rounded-lg shadow-md">
+                    <p class="text-lg font-semibold text-gray-800 mb-4">Pergunta ${String(qNum).padStart(2, '0')} de 48</p>
+                    <p class="text-xl font-medium text-center mb-6">"${affirmations[index]}"</p>
+                    <div class="grid grid-cols-5 gap-2 mb-6">
+                        ${[1,2,3,4,5].map(val => `
+                            <div class="scale-option" data-value="${val}" onclick="selectAnswer(${qNum}, ${val})">
+                                ${val}<br><small>${val === 1 ? 'Discordo totalmente' : val === 2 ? 'Discordo' : val === 3 ? 'Neutro' : val === 4 ? 'Concordo' : 'Concordo totalmente'}</small>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <div class="flex justify-between">
+                        ${index > 0 ? `<button onclick="loadQuestion(${index - 1})" class="btn-secondary text-white px-4 py-2 rounded-lg text-sm">Anterior</button>` : `<div></div>`}
+                        ${index < 47 ? 
+                            `<button onclick="nextQuestion(${index})" class="btn-primary text-white px-4 py-2 rounded-lg text-sm ${responses[index] === null ? 'opacity-50 cursor-not-allowed' : ''}">Próxima</button>` :
+                            `<button onclick="showResult()" class="btn-result text-white px-4 py-2 rounded-lg text-sm ${responses[index] === null ? 'opacity-50 cursor-not-allowed' : ''}">Ver Resultado</button>`
+                        }
+                    </div>
+                </div>
+                <input type="hidden" id="q${qNum}" value="${responses[index] || ''}">
+            `;
+            document.getElementById('current-question').innerHTML = html;
+            if (responses[index] !== null) {
+                document.querySelector(`.scale-option[data-value="${responses[index]}"]`).classList.add('selected');
+            }
+        }
+
+        function selectAnswer(qNum, value) {
+            responses[qNum - 1] = value;
+            document.querySelectorAll('.scale-option').forEach(el => el.classList.remove('selected'));
+            document.querySelector(`.scale-option[data-value="${value}"]`).classList.add('selected');
+            document.getElementById(`q${qNum}`).value = value;
+        }
+
+        function nextQuestion(index) {
+            if (responses[index] === null) {
+                alert('Selecione uma opção antes de continuar.');
+                return;
+            }
+            loadQuestion(index + 1);
+        }
+
+        function showResult() {
+            if (responses[47] === null) {
+                alert('Responda a última pergunta.');
+                return;
+            }
+
+            let scores = { D: 0, I: 0, S: 0, C: 0 };
+            for (let i = 1; i <= 48; i++) {
+                const val = responses[i - 1];
+                const style = discMapping[i];
+                scores[style] += val;
+            }
+
+            const total = scores.D + scores.I + scores.S + scores.C;
+            const pct = {
+                D: Math.round((scores.D / total) * 100),
+                I: Math.round((scores.I / total) * 100),
+                S: Math.round((scores.S / total) * 100),
+                C: Math.round((scores.C / total) * 100)
+            };
+
+            // Ajuste fino para garantir soma = 100%
+            let sum = pct.D + pct.I + pct.S + pct.C;
+            if (sum !== 100) pct.D += (100 - sum);
+
+            document.getElementById('test-section').classList.add('hidden');
+            document.getElementById('result').classList.remove('hidden');
+
+            const maxHeight = 280;
+            setTimeout(() => {
+                document.getElementById('bar-dominancia').style.height = `${(pct.D / 100) * maxHeight}px`;
+                document.getElementById('val-dominancia').textContent = `${pct.D}%`;
+                document.getElementById('bar-influencia').style.height = `${(pct.I / 100) * maxHeight}px`;
+                document.getElementById('val-influencia').textContent = `${pct.I}%`;
+                document.getElementById('bar-estabilidade').style.height = `${(pct.S / 100) * maxHeight}px`;
+                document.getElementById('val-estabilidade').textContent = `${pct.S}%`;
+                document.getElementById('bar-conformidade').style.height = `${(pct.C / 100) * maxHeight}px`;
+                document.getElementById('val-conformidade').textContent = `${pct.C}%`;
+            }, 300);
+
+            const sorted = Object.entries(pct).sort((a, b) => b[1] - a[1]);
+            const primary = sorted[0][0];
+            const secondary = sorted[1][0];
+
+            const info = {
+                D: { name: 'Dominância (Colérico)', desc: 'Líder nato, focado em resultados, direto e determinado. Excelente em tomar decisões rápidas e enfrentar desafios.' },
+                I: { name: 'Influência (Sanguíneo)', desc: 'Comunicativo, entusiasta e persuasivo. Motiva equipes e cria conexões com facilidade.' },
+                S: { name: 'Estabilidade (Fleumático)', desc: 'Calmo, leal e colaborativo. Valoriza harmonia e oferece suporte em ambientes estáveis.' },
+                C: { name: 'Conformidade (Melancólico)', desc: 'Analítico, detalhista e organizado. Prioriza precisão e qualidade no trabalho.' }
+            };
+
+            const p = info[primary];
+            const s = info[secondary];
+
+            document.getElementById('dominant-section').innerHTML = `
+                <div class="bg-gradient-to-r from-red-50 to-red-100 p-4 rounded-lg border-l-4 border-red-500">
+                    <h3 class="text-xl font-bold text-gray-800">Perfil Primário: ${p.name} (${pct[primary]}%)</h3>
+                    <p class="mt-2">${p.desc}</p>
+                </div>
+                <div class="bg-gradient-to-r from-orange-50 to-orange-100 p-4 rounded-lg border-l-4 border-orange-500">
+                    <h3 class="text-xl font-bold text-gray-800">Perfil Secundário: ${s.name} (${pct[secondary]}%)</h3>
+                    <p class="mt-2">${s.desc}</p>
+                </div>
+            `;
+
+            // Configuração dos gráficos comparativos
+            const typicalProfiles = {
+                leader: { D: 40, I: 25, S: 15, C: 20 },
+                communicator: { D: 15, I: 45, S: 20, C: 20 },
+                teamplayer: { D: 10, I: 25, S: 45, C: 20 },
+                analyst: { D: 15, I: 15, S: 20, C: 50 }
+            };
+
+            const createBarChart = (canvasId, profile, userPct) => {
+                const ctx = document.getElementById(canvasId).getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Dominância', 'Influência', 'Estabilidade', 'Conformidade'],
+                        datasets: [
+                            {
+                                label: 'Seu Perfil',
+                                data: [userPct.D, userPct.I, userPct.S, userPct.C],
+                                backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                                borderColor: '#1e40af',
+                                borderWidth: 2
+                            },
+                            {
+                                label: 'Perfil Típico',
+                                data: [profile.D, profile.I, profile.S, profile.C],
+                                backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                                borderColor: '#047857',
+                                borderWidth: 2
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: {
+                                position: 'top',
+                                labels: {
+                                    font: { size: 12, family: 'Inter', weight: '600' },
+                                    color: '#1f2937'
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                titleFont: { family: 'Inter', size: 14 },
+                                bodyFont: { family: 'Inter', size: 12 }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                title: {
+                                    display: true,
+                                    text: 'Percentual (%)',
+                                    font: { family: 'Inter', size: 14, weight: '600' },
+                                    color: '#1f2937'
+                                },
+                                grid: {
+                                    color: '#e2e8f0'
+                                },
+                                ticks: {
+                                    font: { family: 'Inter', size: 12 },
+                                    color: '#1f2937'
+                                }
+                            },
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Categoria DISC',
+                                    font: { family: 'Inter', size: 14, weight: '600' },
+                                    color: '#1f2937'
+                                },
+                                grid: {
+                                    display: false
+                                },
+                                ticks: {
+                                    font: { family: 'Inter', size: 12 },
+                                    color: '#1f2937'
+                                }
+                            }
+                        },
+                        animation: {
+                            duration: 1200,
+                            easing: 'easeOutCubic'
+                        }
+                    }
+                });
+            };
+
+            setTimeout(() => {
+                createBarChart('chart-leader', typicalProfiles.leader, pct);
+                createBarChart('chart-communicator', typicalProfiles.communicator, pct);
+                createBarChart('chart-teamplayer', typicalProfiles.teamplayer, pct);
+                createBarChart('chart-analyst', typicalProfiles.analyst, pct);
+            }, 300);
+
+            window.userData = {
+                name: document.getElementById('name').value.trim(),
+                age: document.getElementById('age').value.trim(),
+                occupation: document.getElementById('occupation').value.trim(),
+                email: document.getElementById('email').value.trim(),
+                pct,
+                primary,
+                secondary,
+                p,
+                s
+            };
+
+            setTimeout(generatePDF, 800);
+        }
+
+        async function generatePDF() {
+            if (!window.jspdf) {
+                alert('Erro ao carregar biblioteca PDF.');
+                return;
+            }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            const pageWidth = 210;
+            let y = 15;
+
+            const data = window.userData;
+            doc.setFontSize(18);
+            doc.text('Resultado DISC - Impulso Coaching', pageWidth / 2, y, { align: 'center' });
+            y += 12;
+            doc.setFontSize(10);
+            doc.text(`Nome: ${sanitize(data.name)} | Idade: ${sanitize(data.age)} | Profissão: ${sanitize(data.occupation)} | Email: ${sanitize(data.email)}`, 20, y, { maxWidth: 170 });
+            y += 15;
+
+            doc.setFontSize(12);
+            doc.text('Seus Percentuais:', 20, y); y += 8;
+            doc.text(`Dominância: ${data.pct.D}%`, 20, y); y += 6;
+            doc.text(`Influência: ${data.pct.I}%`, 20, y); y += 6;
+            doc.text(`Estabilidade: ${data.pct.S}%`, 20, y); y += 6;
+            doc.text(`Conformidade: ${data.pct.C}%`, 20, y); y += 12;
+
+            try {
+                const scoresEl = document.getElementById('scores');
+                const canvas = await html2canvas(scoresEl, { scale: 2 });
+                const img = canvas.toDataURL('image/png');
+                doc.addImage(img, 'PNG', 15, y, 180, 80);
+                y += 90;
+
+                // Adicionar gráficos comparativos ao PDF
+                const chartIds = ['chart-leader', 'chart-communicator', 'chart-teamplayer', 'chart-analyst'];
+                const chartTitles = ['Líder', 'Comunicador', 'Colaborador', 'Analista'];
+                for (let i = 0; i < chartIds.length; i++) {
+                    if (y > 250) {
+                        doc.addPage();
+                        y = 15;
+                    }
+                    doc.setFontSize(12);
+                    doc.text(`Comparação com Perfil Típico: ${chartTitles[i]}`, 20, y);
+                    y += 10;
+                    try {
+                        const chartEl = document.getElementById(chartIds[i]);
+                        const chartCanvas = await html2canvas(chartEl, { scale: 2 });
+                        const chartImg = chartCanvas.toDataURL('image/png');
+                        doc.addImage(chartImg, 'PNG', 15, y, 180, 60);
+                        y += 70;
+                    } catch (e) {
+                        console.error(`Erro ao capturar gráfico ${chartIds[i]}:`, e);
+                    }
+                }
+            } catch (e) { console.error(e); }
+
+            y += 10;
+            doc.setFontSize(12);
+            doc.text('Perfil Primário:', 20, y); y += 6;
+            doc.text(`${data.p.name} (${data.pct[data.primary]}%)`, 20, y); y += 6;
+            doc.text(data.p.desc, 20, y, { maxWidth: 170 }); y += 10;
+            doc.text('Perfil Secundário:', 20, y); y += 6;
+            doc.text(`${data.s.name} (${data.pct[data.secondary]}%)`, 20, y); y += 6;
+            doc.text(data.s.desc, 20, y, { maxWidth: 170 });
+
+            const pdfName = `resultado_disc_${data.name.replace(/\s+/g, '_')}.pdf`;
+            doc.save(pdfName);
+
+            const subject = encodeURIComponent(`Resultado DISC - ${data.name}`);
+            const body = encodeURIComponent(
+                `Nome: ${data.name}\nIdade: ${data.age}\nProfissão: ${data.occupation}\nEmail: ${data.email}\n\n` +
+                `Dominância: ${data.pct.D}%\nInfluência: ${data.pct.I}%\nEstabilidade: ${data.pct.S}%\nConformidade: ${data.pct.C}%\n\n` +
+                `Perfil Primário: ${data.p.name}\nPerfil Secundário: ${data.s.name}\n\n` +
+                `O PDF foi salvo automaticamente. Por favor, anexe o arquivo "${pdfName}" ao e-mail.`
+            );
+            window.location.href = `mailto:impulsoflow@gmail.com?subject=${subject}&body=${body}`;
+
+            setTimeout(() => {
+                alert(`✅ PDF salvo como "${pdfName}".\n📧 A janela de e-mail foi aberta — anexe o PDF e envie!`);
+            }, 600);
+        }
+    </script>
+</body>
+</html>
