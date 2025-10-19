@@ -545,7 +545,7 @@
       doc.setFontSize(8);
       const personalData = `Nome: ${sanitize(data.name)} | Idade: ${sanitize(data.age)} | Profissão: ${sanitize(data.occupation)} | Email: ${sanitize(data.email)}`;
       doc.text(personalData, 18, y + 9, { maxWidth: 170 });
-      y += 15;
+      y += 20;
 
       // === GRÁFICO DE BARRAS HORIZONTAIS ===
       try {
@@ -560,13 +560,13 @@
         doc.setFontSize(10);
         doc.text('📊 Resultado DISC (%)', 18, y + 4);
         doc.addImage(img, 'PNG', 20, y + 8, 170, imgHeight);
-        y += imgHeight + 14;
+        y += imgHeight + 20;
       } catch (e) {
         console.error('Erro ao capturar gráfico:', e);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.text('Erro ao carregar gráfico.', 18, y + 5);
-        y += 10;
+        y += 20;
       }
 
       // === EXPLICAÇÃO DO DISC ===
@@ -604,7 +604,7 @@ Benefícios:
       doc.setFontSize(8);
       const primaryDesc = `${data.p.desc}\n\n${data.p.details}`;
       doc.text(primaryDesc, 18, y + 9, { maxWidth: 170, lineHeightFactor: 1.15 });
-      y += 20;
+      y += 30;
 
       // === PERFIL SECUNDÁRIO ===
       doc.setFillColor(255, 247, 237);
@@ -619,7 +619,7 @@ Benefícios:
       doc.setFontSize(8);
       const secondaryDesc = `${data.s.desc}\n\n${data.s.details}`;
       doc.text(secondaryDesc, 18, y + 9, { maxWidth: 170, lineHeightFactor: 1.15 });
-      y += 20;
+      y += 30;
 
       // === RODAPÉ ===
       doc.setFontSize(8);
