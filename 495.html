@@ -272,7 +272,7 @@
       "Mantenho a serenidade em momentos de alta tensão",
       "Reviso tudo com cuidado antes de dar algo como concluído",
       "Encaro problemas de cabeça erguida, sem recuar",
-      "Conecto-me com facilidade em eventos e construo contatos",
+      "Conecto-me com facilidade em eventos e construo contatos ",
       "Priorizo conexões sólidas e duradouras",
       "Cumpro regras e procedimentos com rigor e consistência",
       "Competição me motiva a dar o meu melhor",
@@ -290,7 +290,7 @@
       "Apresento minhas ideias com firmeza e clareza",
       "Trago humor e crio um clima positivo ao meu redor",
       "Honro meus compromissos com total dedicação",
-      "Planejo meu trabalho com base em prioridades e deadlines",
+      "Planejo meu trabalho com base em prioridades e prazos definidos",
       "Assumo a liderança de projetos até a entrega final",
       "Engajo plateias com apresentações claras e cativantes",
       "Valorizo o trabalho em equipe acima da competição",
@@ -560,13 +560,13 @@
         doc.setFontSize(10);
         doc.text('📊 Resultado DISC (%)', 18, y + 4);
         doc.addImage(img, 'PNG', 20, y + 8, 170, imgHeight);
-        y += imgHeight + 12;
+        y += imgHeight + 14;
       } catch (e) {
         console.error('Erro ao capturar gráfico:', e);
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         doc.text('Erro ao carregar gráfico.', 18, y + 5);
-        y += 15;
+        y += 10;
       }
 
       // === EXPLICAÇÃO DO DISC ===
@@ -589,7 +589,7 @@ Benefícios:
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.text(discText, 18, y + 9, { maxWidth: 170, lineHeightFactor: 1.15 });
-      y += 55;
+      y += 20;
 
       // === PERFIL PRIMÁRIO ===
       doc.setFillColor(255, 241, 242);
@@ -604,7 +604,7 @@ Benefícios:
       doc.setFontSize(8);
       const primaryDesc = `${data.p.desc}\n\n${data.p.details}`;
       doc.text(primaryDesc, 18, y + 9, { maxWidth: 170, lineHeightFactor: 1.15 });
-      y += 85;
+      y += 20;
 
       // === PERFIL SECUNDÁRIO ===
       doc.setFillColor(255, 247, 237);
@@ -619,7 +619,7 @@ Benefícios:
       doc.setFontSize(8);
       const secondaryDesc = `${data.s.desc}\n\n${data.s.details}`;
       doc.text(secondaryDesc, 18, y + 9, { maxWidth: 170, lineHeightFactor: 1.15 });
-      y += 85;
+      y += 20;
 
       // === RODAPÉ ===
       doc.setFontSize(8);
