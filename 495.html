@@ -589,7 +589,7 @@ Benefícios:
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.text(discText, 18, y + 9, { maxWidth: 170, lineHeightFactor: 1.15 });
-      y += 20;
+      y += 60;
 
       // === PERFIL PRIMÁRIO ===
       doc.setFillColor(255, 241, 242);
@@ -604,7 +604,7 @@ Benefícios:
       doc.setFontSize(8);
       const primaryDesc = `${data.p.desc}\n\n${data.p.details}`;
       doc.text(primaryDesc, 18, y + 9, { maxWidth: 170, lineHeightFactor: 1.15 });
-      y += 30;
+      y += 60;
 
       // === PERFIL SECUNDÁRIO ===
       doc.setFillColor(255, 247, 237);
@@ -619,7 +619,7 @@ Benefícios:
       doc.setFontSize(8);
       const secondaryDesc = `${data.s.desc}\n\n${data.s.details}`;
       doc.text(secondaryDesc, 18, y + 9, { maxWidth: 170, lineHeightFactor: 1.15 });
-      y += 30;
+      y += 60;
 
       // === RODAPÉ ===
       doc.setFontSize(8);
