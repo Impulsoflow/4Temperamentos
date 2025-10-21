@@ -1,0 +1,996 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pesquisa Impulso DISC</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.4.0/purify.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body {
+      background: linear-gradient(135deg, #a5f3fc, #06b6d4);
+      font-family: 'Inter', sans-serif;
+    }
+    .scale-option {
+      transition: all 0.2s ease;
+      border: 2px solid #cbd5e1;
+      border-radius: 8px;
+      padding: 8px;
+      text-align: center;
+      cursor: pointer;
+      background-color: #f8fafc;
+      font-weight: 600;
+    }
+    .scale-option:hover {
+      background-color: #e0f2fe;
+      border-color: #38bdf8;
+    }
+    .scale-option:active {
+      transform: scale(1.1);
+    }
+    .scale-option.selected {
+      background: linear-gradient(135deg, #3b82f6, #1e40af);
+      color: white;
+      border-color: #1e40af;
+    }
+    .btn-primary { background: linear-gradient(135deg, #3b82f6, #1e40af); transition: transform 0.1s ease; }
+    .btn-primary:active { transform: scale(1.1); }
+    .btn-secondary { background: linear-gradient(135deg, #6b7280, #4b5563); }
+    .btn-result { background: linear-gradient(135deg, #ec4899, #be185d); transition: transform 0.1s ease; }
+    .btn-result:active { transform: scale(1.1); }
+    .btn-start { background: linear-gradient(135deg, #22d3ee, #0ea5e9); }
+    .signature { font-family: 'Dancing Script', cursive; color: #0ea5e9; font-size: 1.4rem; }
+    .alert-blink {
+      animation: blink 1.2s infinite;
+      background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+      border-left: 4px solid #3b82f6;
+      padding: 10px;
+      border-radius: 8px;
+      margin-top: 10px;
+      font-weight: 600;
+      color: #1e40af;
+    }
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    .input-icon { position: relative; }
+    .input-icon svg {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 20px;
+      height: 20px;
+      color: #4b5563;
+    }
+    .input-icon input { padding-left: 40px; }
+    .progress-bar {
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 4px;
+      overflow: hidden;
+      margin-top: 12px;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #0ea5e9);
+      transition: width 0.3s ease;
+    }
+    #scores canvas {
+      max-width: 600px !important;
+      height: 300px !important;
+      margin: 0 auto;
+    }
+    /* Estilos adicionais para as imagens */
+    .profile-image {
+      width: 100px;
+      height: 100px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-right: 12px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .image-container {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .initial-image {
+      width: 100%;
+      max-width: 600px;
+      height: auto;
+      margin: 20px auto;
+      border-radius: 12px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-4">
+  <div class="max-w-3xl w-full bg-white rounded-2xl shadow-xl p-6 md:p-8">
+    <h2 class="text-3xl md:text-4xl font-bold text-center text-transparent bg-clip-text bg-gradient-to-r from-teal-500 to-blue-600 mb-2">Impulso Coaching</h2>
+    <h1 class="text-4xl md:text-5xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-teal-500 mb-4">Pesquisa Impulso DISC</h1>
+    <!-- Imagem Inicial -->
+    <img id="disc-inicial-img" src="" alt="Disc Inicial" class="initial-image" />
+    <p class="text-center text-gray-600 mb-6">A Mudança Pode Acontecer Em Um Instante</p>
+    <div id="intro">
+      <div class="bg-gradient-to-r from-blue-100 to-teal-100 p-5 rounded-lg mb-4 shadow-md">
+        <p class="text-lg font-semibold text-gray-800 mb-3">Dados Pessoais</p>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+          <div class="input-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+            <input type="text" id="name" placeholder="Nome *" class="border border-teal-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gradient-to-r from-white to-teal-50" />
+          </div>
+          <div class="input-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            <input type="number" id="age" placeholder="Idade *" class="border border-teal-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gradient-to-r from-white to-teal-50" />
+          </div>
+          <div class="input-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+            <input type="text" id="occupation" placeholder="Profissão" class="border border-teal-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gradient-to-r from-white to-teal-50" />
+          </div>
+        </div>
+        <div class="input-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+          </svg>
+          <input type="email" id="email" placeholder="Email *" class="border border-teal-300 rounded-lg p-2 w-full focus:outline-none focus:ring-2 focus:ring-teal-500 bg-gradient-to-r from-white to-teal-50" />
+        </div>
+        <div class="flex justify-end mt-3">
+          <button onclick="startTest()" class="btn-start text-white px-5 py-2 rounded-lg transition shadow-md text-sm md:text-base">Iniciar Pesquisa</button>
+        </div>
+      </div>
+      <div class="alert-blink text-center text-sm md:text-base">
+        <p class="font-bold">Dicas para Responder</p>
+        <ul class="list-disc list-inside mt-1 space-y-1">
+          <li>Seja honesto: responda como você realmente é.</li>
+          <li>Pense em situações do seu cotidiano.</li>
+          <li>Escolha a afirmação que melhor te descreve.</li>
+          <li>Não há respostas certas ou erradas!</li>
+        </ul>
+      </div>
+    </div>
+    <div id="test-section" class="hidden">
+      <div id="current-question"></div>
+    </div>
+    <div id="result" class="hidden mt-4">
+      <div class="bg-gradient-to-r from-blue-50 to-teal-50 p-4 rounded-lg shadow-md mb-4">
+        <h2 class="text-2xl font-extrabold text-center text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-teal-500 mb-2">Pesquisa Impulso DISC</h2>
+        <p class="text-center text-gray-700 text-sm mb-2" id="personal-data"></p>
+        <p class="text-center text-gray-700 text-sm">Explore como suas características se distribuem nas quatro dimensões do DISC e descubra seus pontos fortes e áreas de melhoria.</p>
+      </div>
+      <div id="scores" class="bg-gray-50 rounded-lg p-4 mb-6">
+        <canvas id="resultChart"></canvas>
+      </div>
+      <div id="dominant-section" class="mt-4 space-y-3"></div>
+      <div id="disc-explanation" class="bg-gradient-to-r from-blue-100 to-teal-100 p-4 rounded-lg mt-4 shadow-md">
+        <p class="text-lg font-semibold text-gray-800 mb-2">O que é o DISC?</p>
+        <p class="text-gray-700 text-xs">
+          O DISC® é uma metodologia de avaliação comportamental desenvolvida com base nos estudos de William Marston...
+        </p>
+      </div>
+      <p class="text-right mt-4 text-xl signature">Rogério Braga - impulsoflow@gmail.com</p>
+    </div>
+  </div>
+  <script>
+    // === IMAGENS BASE64 ===
+    // Cole aqui as strings base64 reais das suas imagens.
+    const imgDiscInicial = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."; // Substitua por sua imagem "Disc Inicial.png"
+    const imgFogo = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...";     // Fogo.png
+    const imgAr = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...";       // Ar.png
+    const imgAgua = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...";     // Água.png
+    const imgTerra = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...";    // Terra.png
+
+    const profileImages = {
+      D: imgFogo,
+      I: imgAr,
+      S: imgAgua,
+      C: imgTerra
+    };
+
+    // === AFIRMAÇÕES CORRIGIDAS POR PERFIL ===
+    const affirmations = [
+      "Enfrento desafios de frente e tomo decisões rápidas.", // D
+      "Adoro conhecer pessoas novas e criar conexões.", // I
+      "Prefiro um ambiente calmo e previsível, onde todos se apoiam.", // S
+      "Reviso tudo com cuidado para garantir que esteja 100% correto.", // C
+      "Sou direto e focado em resultados, mesmo que isso gere conflito.", // D
+      "Meu entusiasmo é contagiante e motiva os outros a agir.", // I
+      "Sou paciente e um bom ouvinte, especialmente em momentos difíceis.", // S
+      "Sigo regras e procedimentos com rigor e consistência.", // C
+      "Assumo riscos calculados para atingir objetivos ambiciosos.", // D
+      "Gosto de ser o centro das atenções e receber reconhecimento.", // I
+      "Valorizo a harmonia e evito conflitos sempre que possível.", // S
+      "Minhas decisões são baseadas em dados, fatos e análise lógica.", // C
+      "Sou competitivo e orientado para vencer.", // D
+      "Sou carismático, falante e animado em qualquer ambiente.", // I
+      "Sou leal às pessoas e às causas em que acredito.", // S
+      "Sou organizado, sistemático e orientado para detalhes.", // C
+      "Questiono o 'status quo' e busco maneiras mais eficientes.", // D
+      "Confio na minha intuição e no meu 'feeling' sobre as pessoas.", // I
+      "Gosto de oferecer apoio prático e ajudar nos bastidores.", // S
+      "Preciso de explicações claras e de um motivo lógico para mudanças.", // C
+      "Sob pressão, assumo o comando e sou assertivo.", // D
+      "Uso o humor e a criatividade para aliviar tensões.", // I
+      "Internalizo o estresse para evitar conflitos abertos.", // S
+      "Sob pressão, me retrai e foco nos dados para encontrar soluções.", // C
+      "Busco autoridade e autonomia no meu ambiente.", // D
+      "Gosto de motivar e inspirar os outros a agir.", // I
+      "Preciso de tempo para me adaptar a mudanças significativas.", // S
+      "Posso ser crítico quando os padrões de qualidade não são atendidos.", // C
+      "Impaciência é um desafio para mim, especialmente com indecisão.", // D
+      "Temo a rejeição social e me esforço para ser querido.", // I
+      "Valorizo a sinceridade e a confiança acima de tudo.", // S
+      "Temo cometer erros e ser pego despreparado.", // C
+      "Prefiro variedade e ação a rotinas estáveis.", // D
+      "Sou descrito como otimista e cheio de ideias.", // I
+      "Prefiro seguir métodos comprovados a experimentar o novo.", // S
+      "Minha comunicação é formal, precisa e baseada em lógica.", // C
+      "Foco no resultado final, mesmo que negligencie detalhes.", // D
+      "Tenho facilidade em usar entusiasmo para persuadir os outros.", // I
+      "Sou diplomático e evito confrontos desnecessários.", // S
+      "Sigo padrões estabelecidos para garantir qualidade.", // C
+      "Decido rápido e com confiança, mesmo em momentos de pressão.", // D
+      "Me energizo ao interagir e colaborar com pessoas.", // I
+      "Sou metódico e prefiro concluir uma tarefa antes de iniciar outra.", // S
+      "Sou naturalmente organizado e orientado para detalhes.", // C
+      "Encaro problemas de cabeça erguida, sem recuar.", // D
+      "Trago humor e crio um clima positivo ao meu redor.", // I
+      "Colaboro com colegas, mesmo em pontos de discordância.", // S
+      "Baseio minhas escolhas em análises de dados claras.", // C
+    ];
+    let current = 0;
+    const responses = new Array(48).fill(null);
+    function sanitize(str) {
+      return DOMPurify.sanitize(str);
+    }
+    function validateEmail(email) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+    function startTest() {
+      const name = document.getElementById('name').value.trim();
+      const age = document.getElementById('age').value.trim();
+      const email = document.getElementById('email').value.trim();
+      if (!name || !age || !email || !validateEmail(email)) {
+        alert('Preencha todos os campos corretamente.');
+        return;
+      }
+      document.getElementById('intro').classList.add('hidden');
+      document.getElementById('test-section').classList.remove('hidden');
+      loadQuestion(0);
+    }
+    function loadQuestion(index) {
+      current = index;
+      const qNum = index + 1;
+      const progress = Math.round(((qNum - 1) / 48) * 100);
+      const html = `
+        <div class="bg-gradient-to-r from-blue-50 to-teal-50 p-5 rounded-lg shadow-md">
+          <p class="text-lg font-semibold text-gray-800 mb-4">Pergunta ${String(qNum).padStart(2, '0')} de 48</p>
+          <p class="text-2xl font-bold text-center mb-6">"${affirmations[index]}"</p>
+          <div class="grid grid-cols-5 gap-2 mb-6">
+            ${[1,2,3,4,5].map(val => `
+              <div class="scale-option" data-value="${val}" onclick="selectAnswer(${qNum}, ${val})">
+                ${val}<br><small>${val === 1 ? 'Discordo totalmente' : val === 2 ? 'Discordo' : val === 3 ? 'Neutro' : val === 4 ? 'Concordo' : 'Concordo totalmente'}</small>
+              </div>
+            `).join('')}
+          </div>
+          <div class="flex flex-col items-center">
+            ${index < 47 ? 
+              `<button onclick="nextQuestion(${index})" class="btn-primary text-white px-6 py-3 rounded-lg text-base ${responses[index] === null ? 'opacity-50 cursor-not-allowed' : ''}">Próxima</button>` :
+              `<button onclick="showResult()" class="btn-result text-white px-6 py-3 rounded-lg text-base ${responses[index] === null ? 'opacity-50 cursor-not-allowed' : ''}">Ver Resultado</button>`
+            }
+            ${index > 0 ? `<button onclick="loadQuestion(${index - 1})" class="btn-secondary text-white px-4 py-2 rounded-lg text-sm mt-2">Anterior</button>` : ``}
+          </div>
+          <div class="progress-bar">
+            <div class="progress-bar-fill" style="width: ${progress}%"></div>
+          </div>
+        </div>
+        <input type="hidden" id="q${qNum}" value="${responses[index] || ''}">
+      `;
+      document.getElementById('current-question').innerHTML = html;
+      if (responses[index] !== null) {
+        document.querySelector(`.scale-option[data-value="${responses[index]}"]`).classList.add('selected');
+      }
+    }
+    function selectAnswer(qNum, value) {
+      responses[qNum - 1] = value;
+      document.querySelectorAll('.scale-option').forEach(el => el.classList.remove('selected'));
+      document.querySelector(`.scale-option[data-value="${value}"]`).classList.add('selected');
+      document.getElementById(`q${qNum}`).value = value;
+    }
+    function nextQuestion(index) {
+      if (responses[index] === null) {
+        alert('Selecione uma opção antes de continuar.');
+        return;
+      }
+      loadQuestion(index + 1);
+    }
+    // === EXPLICAÇÃO DETALHADA DO DISC ===
+    const discExplanationFull = `O DISC® é uma metodologia de avaliação comportamental desenvolvida com base nos estudos do psicólogo William Moulton Marston na década de 1920. A ferramenta categoriza os comportamentos humanos em quatro dimensões principais:
+- Dominância (D): Como a pessoa lida com desafios e problemas.
+- Influência (I): Como a pessoa interage com outras pessoas e influencia.
+- Estabilidade (S): Como a pessoa responde a mudanças e ritmo.
+- Conformidade (C): Como a pessoa segue regras, procedimentos e padrões.
+O DISC não mede inteligência, valores ou habilidades técnicas, mas sim tendências comportamentais naturais. É amplamente utilizado em:
+• Desenvolvimento de liderança
+• Formação de equipes
+• Recrutamento e seleção
+• Coaching individual
+• Resolução de conflitos
+Mais de 53 milhões de pessoas já utilizaram o DISC em mais de 38 anos de aplicação global.`;
+    // === IMPORTÂNCIA DA ANÁLISE DISC ===
+    const discImportance = `A análise DISC é uma ferramenta poderosa para o autoconhecimento e o desenvolvimento pessoal e profissional. Ao identificar suas tendências comportamentais, você ganha clareza sobre como interage com os outros, enfrenta desafios e toma decisões. Essa compreensão permite ajustar sua comunicação, melhorar relacionamentos e alinhar suas forças a papéis e ambientes onde você pode prosperar. No contexto profissional, o DISC otimiza a formação de equipes, fortalece a liderança e aumenta a produtividade ao promover colaborações mais harmoniosas e eficazes. Para indivíduos, é um guia para o crescimento, ajudando a superar limitações e maximizar o impacto positivo em suas ações diárias.`;
+    // === PERFIS COMPLETOS COM NOVOS NOMES ===
+    const fullProfiles = {
+      D: {
+        name: "Fogo / Dominância / Colérico / Produtor / Executor",
+        desc: "Indivíduos com perfil Dominante são movidos por desafios, resultados e controle. São líderes naturais que tomam decisões rápidas, enfrentam obstáculos com coragem e preferem ambientes onde podem agir com autonomia. Têm foco intenso em metas e não se intimidam diante de conflitos ou pressão. No ambiente profissional, destacam-se em papéis que exigem iniciativa, coragem e capacidade de resolver problemas complexos sob estresse.",
+        qualities: "Coragem para tomar decisões difíceis, iniciativa para agir sem esperar instruções, foco implacável em resultados, assertividade na comunicação, liderança por exemplo, resiliência sob pressão, capacidade de assumir riscos calculados, energia para impulsionar mudanças, objetividade ao cortar caminho, persistência diante de obstáculos.",
+        weaknesses: "Impaciência com processos lentos ou burocráticos, tendência a ser autoritário ou insensível às emoções alheias, dificuldade em delegar tarefas por medo de perda de controle, negligência de detalhes em prol da velocidade, reação defensiva a críticas, dificuldade em ouvir opiniões contrárias, tendência a criar conflitos desnecessários por impulso, frustração com indecisão alheia, foco excessivo em metas a ponto de ignorar relações interpessoais, resistência a feedbacks que questionem sua autoridade.",
+        development: "Pratique escuta ativa: pare, olhe nos olhos e ouça sem interromper. Desenvolva empatia: pergunte como os outros se sentem antes de agir. Aprenda a delegar com confiança: defina claramente o resultado esperado, mas permita liberdade no caminho. Respire antes de reagir sob pressão. Busque feedback regularmente, especialmente de pessoas que pensam diferente. Lembre-se: resultados sustentáveis nascem de equipes engajadas, não apenas de decisões rápidas.",
+        color: "#ef4444"
+      },
+      I: {
+        name: "Ar / Influência / Sanguíneo / Intuitivo / Comunicador",
+        desc: "Pessoas com perfil Influente são extrovertidas, entusiasmadas e naturalmente persuasivas. Energizam-se com interação social, criam conexões com facilidade e usam seu carisma para motivar os outros. São otimistas, criativas e adoram compartilhar ideias. No trabalho, brilham em funções que envolvem comunicação, vendas, ensino ou qualquer atividade que exija engajar pessoas. Sua maior força é a capacidade de inspirar e criar ambientes positivos, mesmo em momentos difíceis.",
+        qualities: "Carisma e presença marcante, habilidade de comunicação verbal e não verbal, otimismo contagiante, criatividade para gerar ideias, entusiasmo que motiva equipes, facilidade em construir relacionamentos, capacidade de vender ideias ou produtos, flexibilidade para se adaptar a novos contextos, senso de humor que alivia tensões, energia para iniciar projetos com paixão.",
+        weaknesses: "Desorganização e procrastinação em tarefas rotineiras, impulsividade ao tomar decisões sem analisar dados, dificuldade em manter foco em atividades analíticas ou de longo prazo, tendência a prometer mais do que pode entregar, sensibilidade excessiva à rejeição ou críticas, evitação de conflitos difíceis por medo de perder popularidade, distração fácil com novidades, dificuldade em cumprir prazos sem supervisão, foco excessivo em aprovação externa, negligência de detalhes técnicos importantes.",
+        development: "Desenvolva disciplina: use agendas, listas de tarefas e lembretes. Pratique foco: defina blocos de tempo para tarefas analíticas sem distrações. Aceite feedbacks críticos como oportunidades de crescimento, não como ataques pessoais. Cumpra promessas: subestime sua capacidade ao comprometer-se. Equilibre entusiasmo com planejamento: antes de agir, pergunte 'quais dados apoiam esta ideia?'.",
+        color: "#f59e0b"
+      },
+      S: {
+        name: "Água / Estabilidade / Fleumático / Sensitivo / Planejador",
+        desc: "Indivíduos com perfil Estável são pacientes, leais e profundamente colaborativos. Valorizam a harmonia, a confiança e a estabilidade em seus relacionamentos e ambientes de trabalho. São ouvintes atentos, oferecem apoio constante e evitam conflitos sempre que possível. Preferem rotinas previsíveis e mudanças graduais. Sua força está na capacidade de criar ambientes seguros, onde todos se sentem acolhidos e respeitados. São a 'cola' que mantém equipes unidas em tempos de crise.",
+        qualities: "Paciência excepcional em situações de tensão, lealdade inabalável a pessoas e causas, empatia genuína para compreender sentimentos alheias, trabalho em equipe com foco no coletivo, escuta ativa sem julgamento, confiabilidade para cumprir compromissos, calma sob pressão que acalma os outros, consistência no desempenho, diplomacia para mediar conflitos, apoio prático e discreto.",
+        weaknesses: "Resistência a mudanças repentinas ou radicais, passividade que evita confrontar problemas, dificuldade em dizer 'não' por medo de desagradar, lentidão em tomar decisões por medo de errar, tendência a suprimir próprias opiniões para manter a paz, dificuldade em lidar com ambientes caóticos ou competitivos, frustração com colegas impulsivos ou agressivos, evitação de riscos mesmo quando necessários, dificuldade em se promover ou destacar conquistas, sobrecarga emocional por absorver tensões alheias.",
+        development: "Pratique assertividade: expresse suas ideias com clareza e respeito. Defina limites saudáveis: aprender a dizer 'não' é um ato de autocuidado. Aceite mudanças como oportunidades: comece com pequenos ajustes. Expresse suas necessidades: sua voz é tão importante quanto a dos outros. Busque feedback sobre seu impacto: você pode estar mais influente do que imagina.",
+        color: "#3b82f6"
+      },
+      C: {
+        name: "Terra / Conformidade / Melancólico / Analítico / Introspectivo",
+        desc: "Pessoas com perfil Conformista são analíticas, precisas e orientadas por dados e processos. Valorizam a qualidade, a lógica e a consistência acima de tudo. São meticulosas, organizadas e focadas em fazer as coisas 'da maneira certa'. No trabalho, excelentes em funções que exigem atenção a detalhes, análise de riscos, controle de qualidade ou resolução de problemas complexos. Sua força é garantir que nada passe despercebido e que os padrões sejam mantidos.",
+        qualities: "Precisão e atenção a detalhes minuciosos, pensamento lógico e analítico, organização sistemática de informações, integridade para seguir regras e padrões, consistência no desempenho, capacidade de identificar erros ou inconsistências, foco em qualidade e excelência, paciência para revisar e refinar, objetividade baseada em fatos, disciplina para seguir processos.",
+        weaknesses: "Perfeccionismo excessivo que atrasa entregas, crítica excessiva (consigo e com os outros) por padrões elevados, hesitação em decidir sem todas as informações, rigidez em seguir processos mesmo quando ineficazes, dificuldade em lidar com imprevistos ou ambiguidades, tendência a isolar-se para focar no trabalho, resistência a feedbacks subjetivos ou emocionais, lentidão em adaptar-se a mudanças de última hora, foco excessivo em problemas em vez de soluções, dificuldade em delegar por medo de perda de controle de qualidade.",
+        development: "Aceite riscos calculados: nem toda decisão precisa de 100% de certeza. Pratique flexibilidade: pergunte 'qual é o custo de esperar mais?'. Celebre progressos, não só a perfeição. Confie mais na intuição e na experiência alheia. Comunique suas análises de forma construtiva, não crítica. Lembre-se: velocidade e adaptação são tão valiosas quanto precisão em muitos contextos.",
+        color: "#10b981"
+      }
+    };
+    // === 20 PROFISSÕES POR PERFIL ===
+    const professions = {
+      D: [
+        "Empreendedor / Fundador de Startups",
+        "CEO / Diretor Executivo",
+        "Advogado de Litígios",
+        "Corretor de Imóveis de Alto Padrão",
+        "Trader / Investidor",
+        "Policial / Agente de Segurança",
+        "Engenheiro de Projetos (com liderança)",
+        "Gerente de Vendas",
+        "Piloto de Competição / Esportes Radicais",
+        "Consultor de Transformação Organizacional",
+        "Militar de Alta Patente",
+        "Produtor de Eventos de Alto Impacto",
+        "Chef Executivo",
+        "Diretor de Operações",
+        "Engenheiro de Minas",
+        "Corretor de Seguros Corporativos",
+        "Gerente de Crise",
+        "Inspetor de Qualidade Industrial",
+        "Comandante de Navio",
+        "Líder de Equipe de Resgate"
+      ],
+      I: [
+        "Vendedor / Account Executive",
+        "Apresentador de TV / Rádio",
+        "Influenciador Digital",
+        "Professor (Educação Infantil ou Ensino Médio)",
+        "Recrutador de Talentos",
+        "Relações Públicas",
+        "Ator / Performer",
+        "Palestrante Motivacional",
+        "Host de Eventos",
+        "Gerente de Marketing de Influência",
+        "Músico",
+        "Instrumentista",
+        "Compositor",
+        "Cantor / Artista Performático",
+        "DJ / Produtor Musical",
+        "Designer de Moda",
+        "Criador de Conteúdo",
+        "Coach de Vida",
+        "Guia de Turismo",
+        "Animador Cultural"
+      ],
+      S: [
+        "Enfermeiro / Técnico em Enfermagem",
+        "Assistente Social",
+        "Coordenador de Equipe (RH ou Operações)",
+        "Professor de Educação Especial",
+        "Terapeuta Ocupacional",
+        "Bibliotecário",
+        "Mediador de Conflitos",
+        "Analista de Suporte ao Cliente",
+        "Cuidador de Idosos",
+        "Facilitador de Grupos Terapêuticos",
+        "Conselheiro Pastoral",
+        "Psicólogo Clínico",
+        "Instrutor de Yoga / Meditação",
+        "Coordenador de Voluntariado",
+        "Assistente Administrativo Sênior",
+        "Técnico em Laboratório Clínico",
+        "Conselheiro Escolar",
+        "Coordenador de Projetos Sociais",
+        "Auxiliar de Biblioteca",
+        "Cuidador de Crianças"
+      ],
+      C: [
+        "Cientista de Dados",
+        "Auditor Fiscal / Contador Forense",
+        "Engenheiro de Qualidade",
+        "Programador / Desenvolvedor de Software",
+        "Farmacêutico",
+        "Analista de Riscos Financeiros",
+        "Perito Criminal",
+        "Estatístico",
+        "Arquiteto de Sistemas",
+        "Pesquisador Acadêmico",
+        "Contador Forense",
+        "Engenheiro Aeroespacial",
+        "Bioestatístico",
+        "Especialista em Cibersegurança",
+        "Analista de Compliance",
+        "Engenheiro de Software",
+        "Analista de Dados Financeiros",
+        "Perito Contábil",
+        "Especialista em Automação Industrial",
+        "Analista de Sistemas ERP"
+      ]
+    };
+    // === EXPLICAÇÃO DA COMBINAÇÃO EXPANDIDA (~40 LINHAS) ===
+    function getCombinationExplanation(primary, secondary) {
+      const combos = {
+        DI: `Sua combinação Fogo-Ar (Dominância-Influência) cria um perfil dinâmico, carismático e orientado para ação. Você é naturalmente persuasivo, competitivo e adora desafios. Seu estilo é rápido, entusiasmado e focado em resultados visíveis. No ambiente profissional, você se destaca em vendas, liderança de equipes, empreendedorismo ou qualquer função que exija mobilizar pessoas em torno de metas ambiciosas. Sua energia é contagiante, e você tem facilidade em inspirar outros a saírem da zona de conforto. No entanto, seus maiores desafios incluem a impaciência com processos lentos, burocracias ou colegas excessivamente analíticos. Há também uma tendência a negligenciar detalhes em prol da velocidade, o que pode gerar retrabalho. Para crescer, pratique escuta ativa: dê espaço para que outros se expressem sem interromper. Desenvolva empatia ao considerar o impacto emocional de suas decisões rápidas. Aprenda a equilibrar sua urgência natural com a necessidade de planejamento estratégico. Seu superpoder é transformar ideias ousadas em realidade com carisma, coragem e determinação. Você se sente mais realizado quando lidera mudanças tangíveis, conquista metas desafiadoras e inspira outros a agir com confiança. Cultive parcerias com perfis Água ou Terra para equilibrar sua impulsividade com estabilidade e precisão.`,
+        DS: `Sua combinação Fogo-Água (Dominância-Estabilidade) equilibra ação decidida com apoio consistente. Você é um líder prático, confiável e orientado para soluções duradouras. Prefere ambientes estáveis onde pode implementar mudanças de forma controlada e previsível. Sua força está em construir equipes leais, resolver problemas com calma e eficiência, e manter a produtividade mesmo sob pressão. Evite frustrar-se com colegas indecisos ou excessivamente emotivos; em vez disso, use sua paciência e clareza para guiar o grupo com firmeza. Seu desafio é equilibrar sua necessidade de controle e velocidade com a flexibilidade e a empatia necessárias para lidar com pessoas. Você prospera em papéis como gerente de operações, engenheiro de projetos ou coordenador de equipes técnicas. Sua capacidade de manter a calma sob pressão, combinada com sua determinação, faz de você um pilar essencial em crises. Para crescer, pratique delegar com confiança e valorize o ritmo dos outros. Lembre-se: sustentabilidade vem da harmonia entre ação e estabilidade.`,
+        DC: `Sua combinação Fogo-Terra (Dominância-Conformidade) forma um perfil analítico, decisivo e orientado para a excelência. Você toma decisões baseadas em dados, mas age com rapidez e determinação quando necessário. Sua precisão, foco em qualidade e capacidade de antecipar riscos o tornam ideal para papéis técnicos de liderança, como engenheiro-chefe, auditor sênior, consultor estratégico ou cientista de dados. Seu maior desafio é evitar o perfeccionismo paralisante que atrasa entregas e frustra colegas mais ágeis. Aprenda a delegar tarefas analíticas e confie na intuição quando os dados forem insuficientes ou ambíguos. Seu superpoder é resolver problemas complexos com lógica implacável e execução eficiente, garantindo que soluções sejam robustas e duradouras. Você valoriza padrões elevados e se sente realizado quando entrega resultados que combinam inovação com rigor. Para crescer, pratique aceitar riscos calculados e celebre progressos, não apenas a perfeição final.`,
+        ID: `Sua combinação Ar-Fogo (Influência-Dominância) é a fusão do carisma com a ação. Você é um visionário entusiasmado que inspira outros a agir com coragem e propósito. Excelente em papéis de vendas, marketing, liderança criativa ou empreendedorismo, onde pode usar sua energia para conquistar, motivar e transformar ideias em realidade. Cuidado com a impulsividade e a tendência a prometer mais do que pode entregar; sua paixão pode ofuscar o planejamento necessário. Desenvolva disciplina e use sua influência para construir parcerias duradouras, não apenas conquistas rápidas. Seu superpoder é transformar visões abstratas em movimento coletivo tangível. Sua capacidade de comunicar com paixão torna metas ambiciosas acessíveis e inspiradoras. Para crescer, equilibre entusiasmo com análise e aprenda a ouvir críticas construtivas sem levar para o lado pessoal.`,
+        IS: `Sua combinação Ar-Água (Influência-Estabilidade) cria um perfil acolhedor, colaborativo e profundamente humano. Você é um facilitador natural, que constrói relacionamentos sólidos, ambientes positivos e pontes entre pessoas. Ideal para recursos humanos, ensino, atendimento ao cliente ou coordenação de equipes, onde sua empatia, entusiasmo e paciência brilham. Seu desafio é evitar a passividade diante de conflitos ou decisões difíceis; pratique assertividade para expressar suas ideias com clareza e firmeza, sem perder sua essência acolhedora. Seu superpoder é criar harmonia em equipes diversas, transformando tensões em cooperação e inspirando lealdade através da autenticidade. Você se sente mais realizado quando ajuda outros a se sentirem valorizados, conectados e motivados a contribuir. Para crescer, defina limites saudáveis e não tema expressar suas próprias necessidades.`,
+        IC: `Sua combinação Ar-Terra (Influência-Conformidade) equilibra criatividade com precisão. Você comunica ideias complexas com clareza, entusiasmo e atenção aos detalhes. Excelente em papéis como designer instrucional, redator técnico, gerente de produto ou consultor, onde pode traduzir conceitos abstratos em mensagens acessíveis e estruturadas. Cuidado com a autocrítica excessiva e a tendência a revisar demais; sua busca por perfeição pode atrasar entregas e esgotar sua energia criativa. Celebre suas conquistas e confie mais na primeira versão. Seu superpoder é fazer com que dados, regras e processos ganhem vida de forma envolvente e precisa, tornando o complexo simples e o técnico inspirador. Para crescer, pratique entregar "bom o suficiente" rapidamente e refine depois, em vez de buscar a perfeição desde o início.`,
+        SD: `Sua combinação Água-Fogo (Estabilidade-Dominância) forma um líder de apoio prático e determinado. Você é leal, paciente e orientado para soluções concretas que beneficiem o coletivo. Ideal para gestão de equipes operacionais, logística, suporte técnico ou projetos de longo prazo, onde sua confiabilidade e capacidade de execução são essenciais. Seu desafio é assumir riscos calculados e sair da zona de conforto para liderar mudanças necessárias, mesmo que gerem desconforto temporário. Seu superpoder é manter a estabilidade e a coesão da equipe enquanto impulsiona melhorias graduais e sustentáveis. Você se sente realizado quando consegue equilibrar eficiência com bem-estar coletivo, garantindo que ninguém fique para trás. Para crescer, pratique expressar suas opiniões com mais firmeza e confie em sua capacidade de lidar com o imprevisto.`,
+        SI: `Sua combinação Água-Ar (Estabilidade-Influência) é a harmonia entre empatia e entusiasmo. Você é um mediador carismático, que constrói pontes entre pessoas com diferentes estilos. Excelente em funções de suporte, voluntariado, coordenação de eventos ou ensino, onde sua capacidade de ouvir e animar ao mesmo tempo cria conexões genuínas. Cuidado com a dificuldade em dizer "não"; sua generosidade pode levar à sobrecarga emocional. Defina limites saudáveis e lembre-se de que cuidar de si é essencial para cuidar dos outros. Seu superpoder é transformar grupos em comunidades coesas e motivadas, onde todos se sentem seguros para contribuir. Sua rara combinação de calma e energia faz de você um catalisador de cooperação e alegria. Para crescer, pratique expressar suas próprias ideias com mais visibilidade, não apenas apoiar as dos outros.`,
+        SC: `Sua combinação Água-Terra (Estabilidade-Conformidade) cria um perfil meticuloso, confiável e profundamente comprometido com a qualidade. Você é o alicerce de qualquer equipe, garantindo precisão, consistência e apoio emocional discreto. Ideal para contabilidade, análise de dados, controle de qualidade, suporte administrativo ou laboratórios, onde sua atenção aos detalhes e paciência são cruciais. Seu desafio é adaptar-se a mudanças repentinas ou ambientes caóticos; pratique flexibilidade gradual e defina processos claros para reduzir incertezas. Seu superpoder é manter padrões elevados com consistência, ao mesmo tempo em que oferece estabilidade emocional à equipe. Você se sente mais seguro e realizado em ambientes onde regras claras, ritmos previsíveis e relações de confiança prevalecem. Para crescer, pratique delegar tarefas de rotina e explore novas formas de contribuir além da execução impecável.`,
+        CD: `Sua combinação Terra-Fogo (Conformidade-Dominância) forma um estrategista analítico e decidido. Você planeja com precisão, antecipa falhas e executa com determinação quando a ação é necessária. Excelente em papéis como cientista de dados, engenheiro de sistemas, consultor de riscos ou auditor, onde sua lógica implacável e foco em resultados robustos são essenciais. Cuidado com a rigidez e a tendência a rejeitar ideias sem dados suficientes; aceite que nem toda decisão precisa de 100% de certeza. Seu superpoder é transformar dados em estratégias vencedoras e soluções à prova de falhas. Sua capacidade de antecipar problemas e propor caminhos seguros é incomparável. Para crescer, pratique aceitar feedbacks subjetivos e valorize a intuição como complemento à análise. Lembre-se: inovação muitas vezes nasce da experimentação, não apenas da previsão.`,
+        CI: `Sua combinação Terra-Ar (Conformidade-Influência) equilibra análise rigorosa com comunicação clara e envolvente. Você traduz dados complexos, regras e processos em insights acessíveis e inspiradores. Ideal para análise de mercado, ensino técnico, consultoria ou gestão de compliance, onde sua clareza, precisão e capacidade de influenciar são valiosas. Seu desafio é evitar a sobrecarga por perfeccionismo e a autocrítica excessiva; priorize progresso sobre perfeição e celebre pequenas vitórias. Seu superpoder é fazer com que a lógica e os fatos inspirem ação e compreensão, tornando o técnico humano e o complexo simples. Você se sente realizado quando ajuda outros a entenderem o "porquê" por trás dos números e a tomarem decisões mais informadas. Para crescer, pratique entregar versões iniciais rapidamente e refine com base no feedback, em vez de buscar a perfeição isoladamente.`,
+        CS: `Sua combinação Terra-Água (Conformidade-Estabilidade) cria um perfil detalhista, colaborativo e profundamente comprometido com a excelência sustentável. Você é o guardião da qualidade em ambientes estáveis e previsíveis. Excelente em laboratórios, controle de qualidade, suporte técnico especializado ou análise de dados, onde sua paciência, precisão e lealdade garantem resultados consistentes e confiáveis. Seu desafio é lidar com ambiguidades, mudanças repentinas ou pressões por velocidade; defina processos claros e comunique suas necessidades de tempo e clareza. Seu superpoder é manter padrões elevados com consistência, ao mesmo tempo em que oferece apoio discreto e confiável à equipe. Sua lealdade, precisão e capacidade de trabalhar em silêncio fazem de você um parceiro de confiança em qualquer projeto de longo prazo. Para crescer, pratique expressar suas ideias com mais visibilidade e explore formas de contribuir com inovação dentro de sua zona de conforto analítica.`
+      };
+      return combos[primary + secondary] || "Combinação única que equilibra forças complementares.";
+    }
+    // === FUNÇÃO GERAR PDF COM IMAGENS E PÁGINA FINAL ===
+    async function generatePDF(data) {
+      try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ format: 'a4' });
+        // Página 1: Dados Pessoais, Resultados e Gráfico
+        doc.setFillColor(229, 231, 235);
+        doc.rect(0, 0, 210, 297, 'F');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(18);
+        doc.setTextColor(31, 41, 55);
+        doc.text('Pesquisa Impulso DISC', 105, 20, { align: 'center' });
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        const personalData = `Nome: ${sanitize(data.name)} | Idade: ${sanitize(data.age)} | Profissão: ${sanitize(data.occupation)} | Email: ${sanitize(data.email)} | Data: ${new Date().toLocaleDateString('pt-BR')}`;
+        const personalDataLines = doc.splitTextToSize(personalData, 170);
+        doc.text(personalDataLines, 20, 40);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Importância da Análise DISC', 20, 60);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const importanceText = doc.splitTextToSize(discImportance, 170);
+        doc.text(importanceText, 20, 70);
+        // Gráfico
+        const chartCanvas = document.getElementById('resultChart');
+        if (chartCanvas && chartCanvas.getContext) {
+          const chartImage = await html2canvas(chartCanvas, { scale: 3 });
+          const imgData = chartImage.toDataURL('image/png', 1.0);
+          doc.addImage(imgData, 'PNG', 20, 100, 170, 85);
+        }
+        // Página 2: Perfil Primário com Imagem
+        doc.addPage();
+        doc.setFillColor(229, 231, 235);
+        doc.rect(0, 0, 210, 297, 'F');
+        if (profileImages[data.primary]) {
+          doc.addImage(profileImages[data.primary], 'PNG', 20, 20, 30, 30);
+        }
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Perfil Primário: ${data.p.name} (${data.pct[data.primary]}%)`, 60, 40);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const primaryDesc = doc.splitTextToSize(`Descrição: ${data.p.desc}`, 140);
+        doc.text(primaryDesc, 20, 60);
+        const primaryQualities = doc.splitTextToSize(`Qualidades: ${data.p.qualities}`, 170);
+        doc.text(primaryQualities, 20, 80);
+        const primaryWeaknesses = doc.splitTextToSize(`Fraquezas: ${data.p.weaknesses}`, 170);
+        doc.text(primaryWeaknesses, 20, 120);
+        const primaryDevelopment = doc.splitTextToSize(`Para Desenvolver: ${data.p.development}`, 170);
+        doc.text(primaryDevelopment, 20, 160);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Profissões Ideais', 20, 200);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const primaryProfessions = doc.splitTextToSize(professions[data.primary].join(', '), 170);
+        doc.text(primaryProfessions, 20, 210);
+        // Página 3: Perfil Secundário com Imagem
+        doc.addPage();
+        doc.setFillColor(229, 231, 235);
+        doc.rect(0, 0, 210, 297, 'F');
+        if (profileImages[data.secondary]) {
+          doc.addImage(profileImages[data.secondary], 'PNG', 20, 20, 30, 30);
+        }
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Perfil Secundário: ${data.s.name} (${data.pct[data.secondary]}%)`, 60, 40);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const secondaryDesc = doc.splitTextToSize(`Descrição: ${data.s.desc}`, 140);
+        doc.text(secondaryDesc, 20, 60);
+        const secondaryQualities = doc.splitTextToSize(`Qualidades: ${data.s.qualities}`, 170);
+        doc.text(secondaryQualities, 20, 80);
+        const secondaryWeaknesses = doc.splitTextToSize(`Fraquezas: ${data.s.weaknesses}`, 170);
+        doc.text(secondaryWeaknesses, 20, 120);
+        const secondaryDevelopment = doc.splitTextToSize(`Para Desenvolver: ${data.s.development}`, 170);
+        doc.text(secondaryDevelopment, 20, 160);
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Profissões Ideais', 20, 200);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const secondaryProfessions = doc.splitTextToSize(professions[data.secondary].join(', '), 170);
+        doc.text(secondaryProfessions, 20, 210);
+        // Página 4: Combinação dos Perfis
+        doc.addPage();
+        doc.setFillColor(229, 231, 235);
+        doc.rect(0, 0, 210, 297, 'F');
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Combinação dos Perfis', 20, 20);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const comboText = doc.splitTextToSize(getCombinationExplanation(data.primary, data.secondary), 170);
+        doc.text(comboText, 20, 30);
+        // Página 5: Resumo dos Perfis
+        doc.addPage();
+        doc.setFillColor(229, 231, 235);
+        doc.rect(0, 0, 210, 297, 'F');
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Resumo dos Perfis', 20, 20);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const summaryText = doc.splitTextToSize(
+          `**${data.p.name} (${data.pct[data.primary]}%)**: ${data.p.desc}
+` +
+          `**${data.s.name} (${data.pct[data.secondary]}%)**: ${data.s.desc}`,
+          170
+        );
+        doc.text(summaryText, 20, 30);
+        // === PÁGINA 6: RESUMO VISUAL DOS DOIS TEMPERAMENTOS ===
+        doc.addPage();
+        doc.setFillColor(229, 231, 235);
+        doc.rect(0, 0, 210, 297, 'F');
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Resumo dos Dois Principais Temperamentos', 105, 30, { align: 'center' });
+
+        // Primário
+        if (profileImages[data.primary]) {
+          doc.addImage(profileImages[data.primary], 'PNG', 30, 45, 40, 40);
+        }
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${data.p.name}`, 80, 65);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const pSummary = doc.splitTextToSize(data.p.desc.substring(0, 100) + "...", 100);
+        doc.text(pSummary, 80, 70);
+
+        // Secundário
+        if (profileImages[data.secondary]) {
+          doc.addImage(profileImages[data.secondary], 'PNG', 30, 110, 40, 40);
+        }
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`${data.s.name}`, 80, 130);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const sSummary = doc.splitTextToSize(data.s.desc.substring(0, 100) + "...", 100);
+        doc.text(sSummary, 80, 135);
+
+        const pdfName = `Pesquisa_Impulso_DISC_${sanitize(data.name).replace(/\s+/g, '_')}.pdf`;
+        doc.save(pdfName);
+        return doc.output('datauristring').split(',')[1];
+      } catch (error) {
+        console.error('Erro ao gerar PDF:', error);
+        alert('Erro ao gerar o PDF. Tente novamente.');
+        return null;
+      }
+    }
+    function showResult() {
+      if (responses.some(r => r === null)) {
+        alert('Responda todas as perguntas.');
+        return;
+      }
+      let D = 0, I = 0, S = 0, C = 0;
+      for (let i = 0; i < 48; i++) {
+        const resposta = responses[i];
+        if (i % 4 === 0) D += resposta;
+        else if (i % 4 === 1) I += resposta;
+        else if (i % 4 === 2) S += resposta;
+        else if (i % 4 === 3) C += resposta;
+      }
+      const normalize = (score) => {
+        const min = 12;
+        const max = 60;
+        return Math.max(0, Math.min(100, parseFloat((((score - min) / (max - min)) * 100).toFixed(1))));
+      };
+      const rawPct = {
+        D: normalize(D),
+        I: normalize(I),
+        S: normalize(S),
+        C: normalize(C)
+      };
+      const totalRaw = rawPct.D + rawPct.I + rawPct.S + rawPct.C;
+      const pct = {
+        D: parseFloat(((rawPct.D / totalRaw) * 100).toFixed(1)),
+        I: parseFloat(((rawPct.I / totalRaw) * 100).toFixed(1)),
+        S: parseFloat(((rawPct.S / totalRaw) * 100).toFixed(1)),
+        C: parseFloat(((rawPct.C / totalRaw) * 100).toFixed(1))
+      };
+      const total = pct.D + pct.I + pct.S + pct.C;
+      if (total !== 100) {
+        const diff = 100 - total;
+        const maxKey = Object.keys(pct).reduce((a, b) => pct[a] > pct[b] ? a : b);
+        pct[maxKey] = parseFloat((pct[maxKey] + diff).toFixed(1));
+      }
+      document.getElementById('test-section').classList.add('hidden');
+      document.getElementById('result').classList.remove('hidden');
+      // Carregar imagem inicial
+      document.getElementById('disc-inicial-img').src = imgDiscInicial;
+      // Dados pessoais
+      document.getElementById('personal-data').innerHTML = `
+        <span class="font-bold">Nome:</span> ${sanitize(document.getElementById('name').value.trim())} | 
+        <span class="font-bold">Idade:</span> ${sanitize(document.getElementById('age').value.trim())} | 
+        <span class="font-bold">Profissão:</span> ${sanitize(document.getElementById('occupation').value.trim())} | 
+        <span class="font-bold">Email:</span> ${sanitize(document.getElementById('email').value.trim())}
+      `;
+      setTimeout(() => {
+        const ctx = document.getElementById('resultChart').getContext('2d');
+        Chart.register(ChartDataLabels);
+        new Chart(ctx, {
+          type: 'bar',
+          data: {
+            labels: ['Fogo\n(Dominância)', 'Ar\n(Influência)', 'Água\n(Estabilidade)', 'Terra\n(Conformidade)'],
+            datasets: [{
+              data: [pct.D, pct.I, pct.S, pct.C],
+              backgroundColor: [
+                '#ef4444',
+                '#f59e0b',
+                '#3b82f6',
+                '#10b981'
+              ],
+              borderColor: [
+                '#b91c1c',
+                '#b45309',
+                '#1e40af',
+                '#047857'
+              ],
+              borderWidth: 1,
+              borderRadius: 6,
+              borderSkipped: false
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: {
+                beginAtZero: true,
+                max: 100,
+                ticks: {
+                  stepSize: 20,
+                  font: { family: 'Inter', size: 11 },
+                  color: '#4b5563'
+                },
+                grid: { color: 'rgba(0,0,0,0.05)' },
+                title: {
+                  display: true,
+                  text: 'Percentual (%)',
+                  font: { size: 12, weight: 'bold', family: 'Inter' },
+                  color: '#1e40af'
+                }
+              },
+              y: {
+                ticks: {
+                  font: { family: 'Inter', size: 13, weight: 'bold' },
+                  color: '#1f2937'
+                },
+                grid: { display: false }
+              }
+            },
+            plugins: {
+              legend: { display: false },
+              datalabels: {
+                anchor: 'end',
+                align: 'right',
+                formatter: (value) => `${value}%`,
+                color: '#1e40af',
+                font: {
+                  weight: 'bold',
+                  size: 15,
+                  family: 'Inter'
+                },
+                offset: 10
+              }
+            },
+            layout: {
+              padding: {
+                top: 10,
+                right: 30,
+                bottom: 10,
+                left: 10
+              }
+            },
+            animation: {
+              duration: 1200,
+              easing: 'easeOutQuart'
+            }
+          }
+        });
+      }, 2000);
+      const sorted = Object.entries(pct).sort((a, b) => b[1] - a[1]);
+      const primary = sorted[0][0];
+      const secondary = sorted[1][0];
+      const p = fullProfiles[primary];
+      const s = fullProfiles[secondary];
+      // Mostrar resultados com imagens
+      document.getElementById('dominant-section').innerHTML = `
+        <div class="bg-gradient-to-r from-blue-100 to-teal-100 p-3 rounded-lg border-l-4 border-teal-500 mb-4">
+          <h3 class="text-lg font-bold text-gray-800">Importância da Análise DISC</h3>
+          <p class="mt-1 text-xs">${discImportance}</p>
+        </div>
+        <div class="bg-gradient-to-r from-red-50 to-red-100 p-3 rounded-lg border-l-4 border-red-500">
+          <div class="image-container">
+            <img src="${profileImages[primary]}" alt="Perfil ${primary}" class="profile-image" />
+            <div>
+              <h3 class="text-lg font-bold text-gray-800">Perfil Primário: ${p.name} (<span class="font-extrabold text-red-500">${pct[primary]}%</span>)</h3>
+              <p class="mt-1 text-xs"><strong>Descrição:</strong> ${p.desc}</p>
+              <p class="mt-1 text-xs"><strong>Qualidades:</strong> ${p.qualities}</p>
+              <p class="mt-1 text-xs"><strong>Fraquezas:</strong> ${p.weaknesses}</p>
+              <p class="mt-1 text-xs"><strong>Para Desenvolver:</strong> ${p.development}</p>
+              <p class="mt-2 font-semibold text-xs">Profissões Ideais (20):</p>
+              <ul class="list-disc list-inside text-xs mt-1">${professions[primary].map(job => `<li>${job}</li>`).join('')}</ul>
+            </div>
+          </div>
+        </div>
+        <div class="bg-gradient-to-r from-orange-50 to-orange-100 p-3 rounded-lg border-l-4 border-orange-500">
+          <div class="image-container">
+            <img src="${profileImages[secondary]}" alt="Perfil ${secondary}" class="profile-image" />
+            <div>
+              <h3 class="text-lg font-bold text-gray-800">Perfil Secundário: ${s.name} (<span class="font-extrabold text-orange-500">${pct[secondary]}%</span>)</h3>
+              <p class="mt-1 text-xs"><strong>Descrição:</strong> ${s.desc}</p>
+              <p class="mt-1 text-xs"><strong>Qualidades:</strong> ${s.qualities}</p>
+              <p class="mt-1 text-xs"><strong>Fraquezas:</strong> ${s.weaknesses}</p>
+              <p class="mt-1 text-xs"><strong>Para Desenvolver:</strong> ${s.development}</p>
+              <p class="mt-2 font-semibold text-xs">Profissões Ideais (20):</p>
+              <ul class="list-disc list-inside text-xs mt-1">${professions[secondary].map(job => `<li>${job}</li>`).join('')}</ul>
+            </div>
+          </div>
+        </div>
+      `;
+      window.userData = {
+        name: document.getElementById('name').value.trim(),
+        age: document.getElementById('age').value.trim(),
+        occupation: document.getElementById('occupation').value.trim(),
+        email: document.getElementById('email').value.trim(),
+        pct,
+        primary,
+        secondary,
+        p,
+        s,
+        professions,
+        discExplanation: discExplanationFull
+      };
+      setTimeout(() => {
+        const chart = document.getElementById('resultChart');
+        if (chart) {
+          generateAndSendAll();
+        } else {
+          console.error('Canvas do gráfico não encontrado.');
+          alert('Erro ao renderizar o gráfico. Tente novamente.');
+        }
+      }, 2500);
+    }
+    async function generateAndSendAll() {
+      const data = window.userData;
+      const pdfBase64 = await generatePDF(data);
+      // === SALVAR HTML AUTOCONTIDO ===
+      const chartCanvas = document.getElementById('resultChart');
+      let chartImgData = '';
+      if (chartCanvas) {
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = chartCanvas.width;
+        tempCanvas.height = chartCanvas.height;
+        const ctx = tempCanvas.getContext('2d');
+        ctx.drawImage(chartCanvas, 0, 0);
+        chartImgData = tempCanvas.toDataURL('image/png', 1.0);
+      }
+      const resultClone = document.querySelector('#result').cloneNode(true);
+      const oldCanvas = resultClone.querySelector('canvas');
+      if (oldCanvas && chartImgData) {
+        const img = document.createElement('img');
+        img.src = chartImgData;
+        img.alt = 'Gráfico DISC Horizontal';
+        img.style.width = '100%';
+        img.style.maxWidth = '600px';
+        img.style.height = 'auto';
+        img.style.margin = '0 auto';
+        img.style.display = 'block';
+        oldCanvas.parentNode.replaceChild(img, oldCanvas);
+      }
+      const styleContent = `
+        <style>
+          body { font-family: 'Inter', sans-serif; background: #fff; margin: 0; padding: 20px; }
+          .container { max-width: 900px; margin: 0 auto; }
+          h2, h3 { color: #1e40af; }
+          .signature { font-family: 'Dancing Script', cursive; color: #0ea5e9; font-size: 1.4rem; }
+          img { display: block; margin: 20px auto; }
+          .profile-image { width: 100px; height: 100px; object-fit: cover; border-radius: 8px; margin-right: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+          .image-container { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+          @media print { body { background: #fff; } }
+        </style>
+        <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+      `;
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <title>Resultado DISC - ${sanitize(data.name)}</title>
+          ${styleContent}
+        </head>
+        <body>
+          <div class="container">
+            ${resultClone.outerHTML}
+          </div>
+        </body>
+        </html>
+      `;
+      const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Resultado_Impulso_DISC_${sanitize(data.name).replace(/\s+/g, '_')}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      // === ENVIAR E-MAIL ===
+      if (pdfBase64) {
+        try {
+          const subject = encodeURIComponent(`Novo Participante: ${sanitize(data.name)}`);
+          const body = encodeURIComponent(
+            `Nome: ${sanitize(data.name)}
+` +
+            `Idade: ${sanitize(data.age)}
+` +
+            `Profissão: ${sanitize(data.occupation)}
+` +
+            `Email: ${sanitize(data.email)}
+` +
+            `Resultados DISC:
+` +
+            `- Fogo (Dominância): ${data.pct.D}%
+` +
+            `- Ar (Influência): ${data.pct.I}%
+` +
+            `- Água (Estabilidade): ${data.pct.S}%
+` +
+            `- Terra (Conformidade): ${data.pct.C}%
+` +
+            `Perfil Primário: ${data.p.name} (${data.pct[data.primary]}%)
+` +
+            `Perfil Secundário: ${data.s.name} (${data.pct[data.secondary]}%)
+` +
+            `Arquivos gerados:
+` +
+            `1. PDF com análise detalhada (6 páginas)
+` +
+            `2. Página HTML com gráfico e resultados (offline)
+` +
+            `Por favor, anexe AMBOS os arquivos ao e-mail.`
+          );
+          window.location.href = `mailto:impulsoflow@gmail.com?subject=${subject}&body=${body}`;
+          alert(
+            '✅ Pesquisa finalizada!
+' +
+            '• PDF salvo (6 páginas).
+' +
+            '• Página HTML salva com gráfico horizontal.
+' +
+            'A caixa de e-mail foi aberta. Anexe OS DOIS arquivos:
+' +
+            `1. "${sanitize(data.name).replace(/\s+/g, '_')}_Pesquisa_Impulso_DISC.pdf"
+` +
+            `2. "${sanitize(data.name).replace(/\s+/g, '_')}_Resultado_Impulso_DISC.html"
+` +
+            'e envie para impulsoflow@gmail.com.'
+          );
+        } catch (error) {
+          console.error('Erro ao abrir e-mail:', error);
+          alert(
+            '✅ Resultados gerados!
+' +
+            '• PDF e HTML salvos com sucesso.
+' +
+            'Erro ao abrir e-mail. Envie manualmente os dois arquivos para:
+' +
+            'impulsoflow@gmail.com'
+          );
+        }
+      }
+    }
+  </script>
+</body>
+</html>
